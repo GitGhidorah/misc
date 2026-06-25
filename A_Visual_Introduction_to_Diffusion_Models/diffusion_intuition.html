@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diffusion Models — 2D Intuition</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0e;
+    --bg2: #1a1a18;
+    --bg3: #222220;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e6e0;
+    --text2: #8a8880;
+    --text3: #5a5856;
+    --teal: #1D9E75;
+    --teal-light: #5DCAA5;
+    --coral: #D85A30;
+    --coral-light: #F0997B;
+    --blue: #378ADD;
+    --blue-light: #85B7EB;
+    --accent: #9FE1CB;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 32px 40px 24px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .header-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    margin-bottom: 6px;
+  }
+
+  header h1 {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  header p {
+    font-size: 13px;
+    color: var(--text2);
+    max-width: 600px;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 0;
+    height: calc(100vh - 105px);
+    min-height: 560px;
+  }
+
+  .canvas-area {
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border-right: 0.5px solid var(--border);
+  }
+
+  canvas {
+    width: 100%;
+    flex: 1;
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    display: block;
+    background: #0a0a09;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .slider-label {
+    font-size: 12px;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+
+  .slider-label strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  input[type=range] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg3);
+    border-radius: 2px;
+    outline: none;
+    border: 0.5px solid var(--border2);
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--teal-light);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--teal-light);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  .t-val {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--teal-light);
+    min-width: 32px;
+    text-align: right;
+  }
+
+  .side {
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 9px 14px;
+    background: var(--bg3);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+    margin-bottom: 6px;
+  }
+
+  .btn:hover { background: #2a2a28; border-color: rgba(255,255,255,0.2); }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: rgba(29,158,117,0.15);
+    border-color: rgba(29,158,117,0.4);
+    color: var(--teal-light);
+  }
+  .btn-primary:hover { background: rgba(29,158,117,0.22); }
+
+  .legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-bottom: 10px;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+
+  .legend-text {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+
+  .legend-text strong {
+    color: var(--text);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 1px;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+
+  .stat-card .s-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 3px;
+  }
+
+  .stat-card .s-val {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .info-box {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+
+  .info-box .info-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 5px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 0.5px solid var(--border);
+  }
+
+  @media (max-width: 700px) {
+    .main { grid-template-columns: 1fr; height: auto; }
+    canvas { height: 320px; flex: none; }
+    .side { border-top: 0.5px solid var(--border); }
+    header { padding: 20px; }
+    .canvas-area { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">Interactive explainer</div>
+  <h1>Diffusion Models — 2D Intuition</h1>
+  <p>See how data points on a learned manifold get corrupted by Gaussian noise (forward process) and recovered by the score function (reverse process).</p>
+</header>
+
+<div class="main">
+  <div class="canvas-area">
+    <div class="slider-row">
+      <span class="slider-label">Noise level &nbsp;<strong>t</strong></span>
+      <input type="range" id="tSlider" min="0" max="100" value="50" step="1">
+      <span class="t-val" id="tVal">50</span>
+      <span class="slider-label" style="color:var(--text3)">/ 100</span>
+    </div>
+    <canvas id="c"></canvas>
+    <div class="slider-row" style="gap:16px; justify-content:flex-end;">
+      <span style="font-size:11px; color:var(--text3)">t = 0 &nbsp;→&nbsp; original manifold &nbsp;|&nbsp; t = 100 &nbsp;→&nbsp; pure Gaussian noise</span>
+    </div>
+  </div>
+
+  <div class="side">
+    <div>
+      <div class="section-label">Controls</div>
+      <button class="btn btn-primary" id="btnReverse">▶ &nbsp;Run one reverse step</button>
+      <button class="btn" id="btnReset">↺ &nbsp;Reset to random noise (t = 80)</button>
+      <button class="btn" id="btnResample">⟳ &nbsp;Resample data points</button>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">Current state</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="s-label">t</div>
+          <div class="s-val" id="statT">50</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Noise σ</div>
+          <div class="s-val" id="statSigma">80</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Data pts</div>
+          <div class="s-val" id="statPts">60</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Clusters</div>
+          <div class="s-val">2</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">Legend</div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#1D9E75"></div>
+        <div class="legend-text"><strong>Data manifold</strong>Two clusters simulating distinct image classes (e.g. dogs vs cats).</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#D85A30"></div>
+        <div class="legend-text"><strong>Noisy points</strong>Manifold points after Gaussian noise is added at level t.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#378ADD; opacity:0.7"></div>
+        <div class="legend-text"><strong>Score function</strong>Arrows pointing toward the nearest manifold cluster — the direction the reverse process moves.</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">How to explore</div>
+      <div class="info-box">
+        <div class="info-title">Forward process</div>
+        Drag the slider from 0 → 100. Watch red points scatter away from the green manifold. At t = 100, the original structure is completely lost.
+      </div>
+      <div class="info-box" style="margin-top:8px">
+        <div class="info-title">Reverse process</div>
+        Set t to 80–100, then click <em>Run one reverse step</em> repeatedly. The score function (blue arrows) guides each noisy point back toward the manifold — one probabilistic step at a time.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  draw(currentT);
+}
+window.addEventListener('resize', resize);
+
+// Cluster definitions (in normalized 0-1 space, mapped to canvas)
+const CLUSTERS = [
+  { fx: 0.28, fy: 0.40, fr: 0.10, label: 'Cluster A\n(class: dog)' },
+  { fx: 0.68, fy: 0.55, fr: 0.09, label: 'Cluster B\n(class: cat)' },
+];
+
+function fw(v) { return v * (canvas.width / devicePixelRatio); }
+function fh(v) { return v * (canvas.height / devicePixelRatio); }
+
+function clusterPx(cl) {
+  return { cx: fw(cl.fx), cy: fh(cl.fy), r: fw(cl.fr) };
+}
+
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function sampleManifold(n) {
+  const pts = [];
+  CLUSTERS.forEach(cl => {
+    const { cx, cy, r } = clusterPx(cl);
+    for (let i = 0; i < Math.floor(n / CLUSTERS.length); i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const rad = r * (0.2 + 0.8 * Math.random());
+      pts.push({ x: cx + Math.cos(angle) * rad, y: cy + Math.sin(angle) * rad });
+    }
+  });
+  return pts;
+}
+
+function applyNoise(origPts, t) {
+  const W = canvas.width / devicePixelRatio;
+  const H = canvas.height / devicePixelRatio;
+  const sigma = (t / 100) * Math.min(W, H) * 0.30;
+  return origPts.map(p => ({
+    ox: p.x, oy: p.y,
+    nx: p.x + randn() * sigma,
+    ny: p.y + randn() * sigma,
+  }));
+}
+
+function scoreDir(x, y) {
+  let bx = 0, by = 0, bestD = Infinity;
+  CLUSTERS.forEach(cl => {
+    const { cx, cy } = clusterPx(cl);
+    const d = Math.hypot(x - cx, y - cy);
+    if (d < bestD) { bestD = d; bx = cx; by = cy; }
+  });
+  const dx = bx - x, dy = by - y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { dx: dx / len, dy: dy / len, dist: bestD };
+}
+
+let origPts = [];
+let noisePts = [];
+let currentT = 50;
+
+function init() {
+  origPts = sampleManifold(60);
+  noisePts = applyNoise(origPts, currentT);
+  updateStats();
+}
+
+function updateStats() {
+  const W = canvas.width / devicePixelRatio;
+  const sigma = Math.round((currentT / 100) * W * 0.30);
+  document.getElementById('statT').textContent = currentT;
+  document.getElementById('statSigma').textContent = sigma + 'px';
+  document.getElementById('statPts').textContent = noisePts.length;
+}
+
+function draw(t) {
+  const W = canvas.width / devicePixelRatio;
+  const H = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0a0a09';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Manifold cluster outlines
+  CLUSTERS.forEach(cl => {
+    const { cx, cy, r } = clusterPx(cl);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(29,158,117,0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = `11px -apple-system, system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(93,202,165,0.55)';
+    const lines = cl.label.split('\n');
+    lines.forEach((line, i) => {
+      ctx.fillText(line, cx - 36, cy + r + 14 + i * 14);
+    });
+  });
+
+  // Score function arrows
+  if (t > 8) {
+    const arrowAlpha = Math.min(0.65, t / 90);
+    const arrowLen = (t / 100) * 22;
+    noisePts.forEach(p => {
+      const s = scoreDir(p.nx, p.ny);
+      const ex = p.nx + s.dx * arrowLen;
+      const ey = p.ny + s.dy * arrowLen;
+      ctx.beginPath();
+      ctx.moveTo(p.nx, p.ny);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = `rgba(55,138,221,${arrowAlpha * 0.45})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(ex, ey, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(133,183,235,${arrowAlpha * 0.55})`;
+      ctx.fill();
+    });
+  }
+
+  // Original manifold points
+  origPts.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(29,158,117,0.75)';
+    ctx.fill();
+  });
+
+  // Noisy points
+  if (t >= 3) {
+    const noiseAlpha = 0.3 + (t / 100) * 0.55;
+    noisePts.forEach(p => {
+      // Connection line
+      if (t < 55) {
+        ctx.beginPath();
+        ctx.moveTo(p.ox, p.oy);
+        ctx.lineTo(p.nx, p.ny);
+        ctx.strokeStyle = `rgba(216,90,48,${(t / 100) * 0.12})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(p.nx, p.ny, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(216,90,48,${noiseAlpha})`;
+      ctx.fill();
+    });
+  }
+
+  // State label
+  ctx.font = `500 12px -apple-system, system-ui, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  let stateLabel = `t = ${t}`;
+  if (t === 0) stateLabel += '  —  original distribution';
+  else if (t >= 95) stateLabel += '  —  pure Gaussian noise';
+  else if (t >= 60) stateLabel += '  —  heavily corrupted';
+  else if (t <= 20) stateLabel += '  —  nearly recovered';
+  ctx.fillText(stateLabel, 12, 18);
+}
+
+// Init after first layout
+requestAnimationFrame(() => {
+  resize();
+  init();
+  draw(currentT);
+});
+
+// Slider
+document.getElementById('tSlider').addEventListener('input', function() {
+  currentT = +this.value;
+  document.getElementById('tVal').textContent = currentT;
+  noisePts = applyNoise(origPts, currentT);
+  updateStats();
+  draw(currentT);
+});
+
+// Reverse step
+document.getElementById('btnReverse').addEventListener('click', () => {
+  if (currentT <= 0) return;
+  currentT = Math.max(0, currentT - 8);
+  document.getElementById('tSlider').value = currentT;
+  document.getElementById('tVal').textContent = currentT;
+  const stepScale = 14 * (currentT / 100 + 0.1);
+  noisePts = noisePts.map(p => {
+    const s = scoreDir(p.nx, p.ny);
+    return {
+      ox: p.ox, oy: p.oy,
+      nx: p.nx + s.dx * stepScale + randn() * 2.5,
+      ny: p.ny + s.dy * stepScale + randn() * 2.5,
+    };
+  });
+  updateStats();
+  draw(currentT);
+});
+
+// Reset
+document.getElementById('btnReset').addEventListener('click', () => {
+  currentT = 80;
+  document.getElementById('tSlider').value = currentT;
+  document.getElementById('tVal').textContent = currentT;
+  origPts = sampleManifold(60);
+  noisePts = applyNoise(origPts, currentT);
+  updateStats();
+  draw(currentT);
+});
+
+// Resample
+document.getElementById('btnResample').addEventListener('click', () => {
+  origPts = sampleManifold(60);
+  noisePts = applyNoise(origPts, currentT);
+  updateStats();
+  draw(currentT);
+});
+</script>
+</body>
+</html>
