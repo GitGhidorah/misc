@@ -1,0 +1,223 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.app { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr auto; height: 620px; border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.header { grid-column: 1 / -1; padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface-1); }
+.header-title { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.pane { display: flex; flex-direction: column; overflow: hidden; }
+.pane + .pane { border-left: 0.5px solid var(--border); }
+.pane-header { padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--text-secondary); border-bottom: 0.5px solid var(--border); background: var(--surface-1); display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+textarea { flex: 1; border: none; outline: none; resize: none; padding: 14px; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--text-primary); background: var(--surface-2); }
+.output-pane { flex: 1; overflow-y: auto; padding: 14px; font-size: 14px; line-height: 1.8; color: var(--text-primary); background: var(--surface-2); }
+.footer { grid-column: 1 / -1; padding: 10px 16px; border-top: 0.5px solid var(--border); background: var(--surface-1); display: flex; gap: 8px; align-items: center; }
+button { font-family: var(--font-sans); font-size: 13px; padding: 6px 14px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); cursor: pointer; background: var(--surface-2); color: var(--text-primary); }
+button:hover { background: var(--surface-1); }
+.status { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.tab-row { display: flex; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+.tab { padding: 7px 14px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -0.5px; }
+.tab.active { color: var(--text-primary); border-bottom-color: var(--border-accent); }
+.tab:hover:not(.active) { color: var(--text-secondary); }
+.preview-html h1 { font-size: 20px; font-weight: 500; margin: 12px 0 6px; }
+.preview-html h2 { font-size: 17px; font-weight: 500; margin: 10px 0 5px; }
+.preview-html h3 { font-size: 15px; font-weight: 500; margin: 8px 0 4px; }
+.preview-html p { margin: 4px 0; }
+.preview-html ul, .preview-html ol { margin: 4px 0 4px 20px; }
+.preview-html code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-1); padding: 1px 4px; border-radius: 3px; }
+</style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+
+<div class="app">
+  <div class="header">
+    <div>
+      <div class="header-title">Markdown → HTML Converter</div>
+      <div style="font-size:12px;color:var(--text-muted)">MathJax / KaTeX support</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted)">$...$ inline &ensp; $$...$$ block</div>
+  </div>
+
+  <div class="pane" style="grid-row:2/3;grid-column:1/2;">
+    <div class="pane-header"><span style="width:6px;height:6px;border-radius:50%;background:#888780;display:inline-block"></span>Input — Markdown</div>
+    <textarea id="md-input" spellcheck="false"></textarea>
+  </div>
+
+  <div class="pane" style="grid-row:2/3;grid-column:2/3;">
+    <div class="tab-row">
+      <div class="tab active" data-tab="mj" onclick="switchTab('mj')"><span style="color:var(--text-success)">●</span>&ensp;MathJax preview</div>
+      <div class="tab" data-tab="kt" onclick="switchTab('kt')"><span style="color:var(--text-accent)">●</span>&ensp;KaTeX preview</div>
+    </div>
+    <div class="output-pane" id="preview-mj"><div class="preview-html" id="render-mj"></div></div>
+    <div class="output-pane" id="preview-kt" style="display:none"><div class="preview-html" id="render-kt"></div></div>
+  </div>
+
+  <div class="footer">
+    <button onclick="downloadHTML('mj')"><i class="ti ti-download" aria-hidden="true"></i> MathJax HTML</button>
+    <button onclick="downloadHTML('kt')"><i class="ti ti-download" aria-hidden="true"></i> KaTeX HTML</button>
+    <button onclick="copyHTML('mj')"><i class="ti ti-copy" aria-hidden="true"></i> Copy MathJax</button>
+    <button onclick="copyHTML('kt')"><i class="ti ti-copy" aria-hidden="true"></i> Copy KaTeX</button>
+    <span class="status" id="status-msg"></span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+const SAMPLE = `# Euler's Formula
+
+One of the most beautiful equations in mathematics.
+
+$$e^{i\\pi} + 1 = 0$$
+
+Here $e$ is Euler's number, $i$ is the imaginary unit, and $\\pi$ is pi.
+
+## Gaussian Integral
+
+$$\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}$$
+
+## Taylor Series
+
+$\\sin x = x - \\dfrac{x^3}{3!} + \\dfrac{x^5}{5!} - \\cdots$
+
+### Dot Product
+
+$\\mathbf{a} \\cdot \\mathbf{b} = \\sum_{i=1}^{n} a_i b_i$`;
+
+function inlineFormat(s) {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>');
+}
+
+function mdToHtmlBody(md) {
+  let lines = md.split('\n'), html = '', inUl = false, inOl = false;
+  function close(){ if(inUl){html+='</ul>';inUl=false;} if(inOl){html+='</ol>';inOl=false;} }
+  for (let line of lines) {
+    if (/^### (.+)/.test(line)) { close(); html += `<h3>${line.slice(4)}</h3>`; continue; }
+    if (/^## (.+)/.test(line))  { close(); html += `<h2>${line.slice(3)}</h2>`; continue; }
+    if (/^# (.+)/.test(line))   { close(); html += `<h1>${line.slice(2)}</h1>`; continue; }
+    if (/^- (.+)/.test(line))   { if(inOl){html+='</ol>';inOl=false;} if(!inUl){html+='<ul>';inUl=true;} html+=`<li>${inlineFormat(line.slice(2))}</li>`; continue; }
+    if (/^\d+\. (.+)/.test(line)){ if(inUl){html+='</ul>';inUl=false;} if(!inOl){html+='<ol>';inOl=true;} html+=`<li>${inlineFormat(line.replace(/^\d+\. /,''))}</li>`; continue; }
+    close();
+    if (line.trim() === '') { html += '<br>'; continue; }
+    html += `<p>${inlineFormat(line)}</p>`;
+  }
+  close();
+  return html;
+}
+
+function applyKaTeX(html) {
+  html = html.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
+    try { return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }); }
+    catch(e) { return `<span style="color:red">${tex}</span>`; }
+  });
+  html = html.replace(/\$([^$\n]+?)\$/g, (_, tex) => {
+    try { return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }); }
+    catch(e) { return `<span style="color:red">${tex}</span>`; }
+  });
+  return html;
+}
+
+function updatePreview() {
+  const md = document.getElementById('md-input').value;
+  const body = mdToHtmlBody(md);
+
+  const mjEl = document.getElementById('render-mj');
+  mjEl.innerHTML = body;
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([mjEl]).catch(() => {});
+  }
+
+  const ktEl = document.getElementById('render-kt');
+  ktEl.innerHTML = window.katex ? applyKaTeX(body) : body;
+}
+
+function setStatus(msg) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', 2500);
+}
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.tab === t));
+  document.getElementById('preview-mj').style.display = t === 'mj' ? '' : 'none';
+  document.getElementById('preview-kt').style.display = t === 'kt' ? '' : 'none';
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildFullHTML(type) {
+  const md = document.getElementById('md-input').value;
+  const body = mdToHtmlBody(md);
+  const title = (md.match(/^# (.+)/m) || ['','Untitled'])[1];
+  const css = `body{font-family:sans-serif;max-width:860px;margin:40px auto;padding:0 24px;line-height:1.8;color:#1a1a1a}h1{font-size:2em;margin:1em 0 .4em}h2{font-size:1.5em;margin:.9em 0 .3em}h3{font-size:1.2em;margin:.8em 0 .25em}p{margin:.5em 0}ul,ol{margin:.4em 0 .4em 1.5em}code{font-size:.88em;background:#f4f4f4;padding:1px 5px;border-radius:3px}`;
+
+  if (type === 'mj') {
+    return [
+      '<!DOCTYPE html>',
+      '<html lang="en">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width,initial-scale=1">',
+      `<title>${escapeHtml(title)}</title>`,
+      `<style>${css}</style>`,
+      '<script>MathJax={tex:{inlineMath:[[\'$\',\'$\']],displayMath:[[\'$$\',\'$$\']]}};<\/script>',
+      '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"><\/script>',
+      '</head>',
+      '<body>',
+      body,
+      '</body>',
+      '</html>'
+    ].join('\n');
+  } else {
+    const rendered = applyKaTeX(body);
+    return [
+      '<!DOCTYPE html>',
+      '<html lang="en">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width,initial-scale=1">',
+      `<title>${escapeHtml(title)}</title>`,
+      '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">',
+      `<style>.katex-display{overflow-x:auto;overflow-y:hidden;padding:.5em 0}.katex{font-size:1.1em}${css}</style>`,
+      '</head>',
+      '<body>',
+      rendered,
+      '</body>',
+      '</html>'
+    ].join('\n');
+  }
+}
+
+function downloadHTML(type) {
+  const html = buildFullHTML(type);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = type === 'mj' ? 'output-mathjax.html' : 'output-katex.html';
+  a.click();
+  setStatus((type === 'mj' ? 'MathJax' : 'KaTeX') + ' HTML downloaded');
+}
+
+function copyHTML(type) {
+  navigator.clipboard.writeText(buildFullHTML(type)).then(() =>
+    setStatus((type === 'mj' ? 'MathJax' : 'KaTeX') + ' HTML copied to clipboard')
+  );
+}
+
+window.MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  startup: {
+    ready() { MathJax.startup.defaultReady(); updatePreview(); }
+  }
+};
+const mjS = document.createElement('script');
+mjS.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
+mjS.async = true;
+document.head.appendChild(mjS);
+
+const inp = document.getElementById('md-input');
+inp.value = SAMPLE;
+inp.addEventListener('input', () => { clearTimeout(inp._t); inp._t = setTimeout(updatePreview, 350); });
+updatePreview();
+</script>
