@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>忘却曲線トレーナー</title>
+<style>
+:root{
+  --ink:#1d2b28;
+  --paper:#f3ede0;
+  --paper-dim:#e8dfc9;
+  --moss:#3c5a48;
+  --moss-dark:#2a4034;
+  --rust:#b5562b;
+  --gold:#c79a3e;
+  --line:#cdbf9c;
+  --danger:#a8412b;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    repeating-linear-gradient(transparent, transparent 27px, var(--line) 28px),
+    var(--paper);
+  background-attachment:local;
+  color:var(--ink);
+  font-family: "Hiragino Mincho ProN","Yu Mincho", Georgia, "Noto Serif JP", serif;
+  line-height:1.6;
+  min-height:100vh;
+  padding:0 0 60px;
+}
+.wrap{max-width:840px;margin:0 auto;padding:32px 20px 0;}
+
+header.top{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  border-bottom:3px solid var(--ink);
+  padding-bottom:14px;margin-bottom:18px;
+}
+header.top h1{
+  font-size:26px;letter-spacing:.04em;margin:0;font-weight:700;
+}
+header.top .sub{
+  font-family: Georgia, serif; font-style:italic; color:var(--rust);
+  font-size:13px; letter-spacing:.06em;
+}
+nav.tabs{display:flex;gap:0;margin-bottom:26px;border-bottom:1px solid var(--line);}
+nav.tabs button{
+  flex:1;background:none;border:none;cursor:pointer;
+  font-family:inherit;font-size:15px;padding:10px 6px;
+  color:#6b6354;border-bottom:3px solid transparent;
+  transition:.15s;
+}
+nav.tabs button.active{color:var(--ink);border-bottom-color:var(--rust);font-weight:700;}
+nav.tabs button:hover{color:var(--ink);}
+
+.card{
+  background:var(--paper-dim);
+  border:1px solid var(--line);
+  border-radius:2px;
+  padding:24px;
+  margin-bottom:18px;
+  box-shadow:0 1px 0 var(--line);
+}
+.muted{color:#766f5e;font-size:13.5px;}
+
+/* ---- stats strip ---- */
+.stats-strip{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
+.stat-box{
+  flex:1;min-width:120px;background:var(--ink);color:var(--paper);
+  padding:14px 16px;border-radius:2px;
+}
+.stat-box .num{font-size:24px;font-weight:700;color:var(--gold);}
+.stat-box .lbl{font-size:11.5px;letter-spacing:.05em;opacity:.85;}
+
+/* ---- quiz ---- */
+.quiz-meta{display:flex;justify-content:space-between;font-size:12.5px;color:#766f5e;margin-bottom:10px;}
+.quiz-word{
+  font-size:38px;font-weight:700;text-align:center;margin:14px 0 6px;letter-spacing:.02em;
+}
+.quiz-hint{text-align:center;color:#8a8270;font-size:13px;margin-bottom:22px;}
+.choices{display:grid;gap:10px;}
+.choice-btn{
+  text-align:left;background:var(--paper);border:1.5px solid var(--ink);
+  border-radius:2px;padding:13px 16px;font-size:15px;cursor:pointer;
+  font-family:inherit;color:var(--ink);transition:.12s;
+  display:flex;gap:10px;align-items:center;
+}
+.choice-btn .key{
+  font-weight:700;color:var(--rust);width:18px;flex:0 0 18px;
+}
+.choice-btn:hover:not(:disabled){background:#fffdf6;border-color:var(--rust);}
+.choice-btn:disabled{cursor:default;}
+.choice-btn.correct{background:var(--moss);border-color:var(--moss-dark);color:#fff;}
+.choice-btn.correct .key{color:var(--gold);}
+.choice-btn.wrong{background:var(--danger);border-color:#7c2c1c;color:#fff;}
+.choice-btn.wrong .key{color:#fff;}
+
+.feedback{margin-top:16px;text-align:center;font-size:14px;min-height:20px;}
+.next-btn{
+  display:block;margin:18px auto 0;background:var(--ink);color:var(--paper);
+  border:none;padding:11px 30px;border-radius:2px;cursor:pointer;font-size:14.5px;
+  font-family:inherit;letter-spacing:.03em;
+}
+.next-btn:hover{background:var(--moss-dark);}
+.empty-state{text-align:center;padding:30px 10px;}
+.empty-state .big{font-size:40px;margin-bottom:6px;}
+
+/* ---- word list ---- */
+table.wordlist{width:100%;border-collapse:collapse;font-size:14px;}
+table.wordlist th{
+  text-align:left;border-bottom:2px solid var(--ink);padding:6px 8px;font-size:12px;
+  letter-spacing:.04em;color:#665f4f;
+}
+table.wordlist td{padding:7px 8px;border-bottom:1px solid var(--line);}
+.stage-pill{
+  display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;color:#fff;
+  background:#9c9374;
+}
+.stage-pill.s0{background:#a8412b;}
+.stage-pill.s1{background:#b5562b;}
+.stage-pill.s2{background:#c79a3e;}
+.stage-pill.s3{background:#8a8e3e;}
+.stage-pill.s4{background:#3c5a48;}
+.stage-pill.s5,.stage-pill.s6{background:#2a4034;}
+
+/* ---- chart ---- */
+.chart-wrap{position:relative;}
+.legend{display:flex;gap:18px;font-size:12.5px;margin-top:10px;justify-content:center;}
+.legend span{display:flex;align-items:center;gap:6px;}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+
+.add-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.add-row input{
+  font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ink);
+  border-radius:2px;background:#fffdf6;flex:1;min-width:120px;
+}
+.add-row button{
+  background:var(--moss);color:#fff;border:none;border-radius:2px;padding:8px 16px;
+  cursor:pointer;font-family:inherit;font-size:14px;
+}
+.add-row button:hover{background:var(--moss-dark);}
+
+button.link-btn{background:none;border:none;color:var(--rust);cursor:pointer;font-family:inherit;font-size:12.5px;text-decoration:underline;padding:0;}
+.loading{text-align:center;padding:40px;color:#8a8270;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>忘却曲線トレーナー</h1>
+    <div style="text-align:right;">
+      <div class="sub">Ebbinghaus Vocabulary Trainer</div>
+      <div style="margin-top:6px;">
+        <span class="muted" id="profile-label">プロファイル: default</span>
+        <span class="muted"> ・ </span>
+        <button class="link-btn" id="switch-profile-btn">0から新しく始める／切り替え</button>
+      </div>
+      <div style="margin-top:4px;">
+        <button class="link-btn" id="export-btn">バックアップ保存</button>
+        <span class="muted"> ・ </span>
+        <button class="link-btn" id="import-btn">バックアップ読込</button>
+        <input type="file" id="import-file" accept="application/json" style="display:none;">
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button id="tab-quiz" class="active">学習する</button>
+    <button id="tab-stats">忘却曲線データ</button>
+    <button id="tab-words">単語リスト</button>
+  </nav>
+
+  <div id="view-quiz"></div>
+  <div id="view-stats" style="display:none;"></div>
+  <div id="view-words" style="display:none;"></div>
+</div>
+
+<script>
+/* ============== 単語データ（初期セット） ============== */
+const DEFAULT_WORDS = [
+ ["abandon","捨てる、放棄する"],["abundant","豊富な"],["accelerate","加速する"],
+ ["accompany","同行する"],["acquire","獲得する"],["adapt","適応する"],
+ ["adequate","十分な"],["adjacent","隣接した"],["advocate","擁護する"],
+ ["aggregate","集計する、総計"],["ambiguous","曖昧な"],["analogy","類推、類似"],
+ ["anticipate","予期する"],["arbitrary","恣意的な"],["articulate","明確に述べる"],
+ ["assert","主張する"],["attribute","〜のせいにする、属性"],["benevolent","慈悲深い"],
+ ["bias","偏見"],["coherent","首尾一貫した"],["compensate","埋め合わせる"],
+ ["comprehensive","包括的な"],["conceive","思いつく、想像する"],["constitute","構成する"],
+ ["contradict","矛盾する"],["conventional","従来の"],["correlate","相関する"],
+ ["counterpart","対応する人・物"],["deduce","推論する"],["deficient","不足した"],
+ ["derive","由来する、導き出す"],["discrepancy","食い違い"],["distinct","明確な、異なる"],
+ ["diverse","多様な"],["elaborate","詳細な、詳しく述べる"],["eliminate","排除する"],
+ ["empirical","経験的な"],["enhance","高める"],["equivalent","同等の"],
+ ["evoke","呼び起こす"],["exceed","上回る"],["explicit","明示的な"],
+ ["facilitate","促進する"],["fluctuate","変動する"],["fundamental","基本的な"],
+ ["hierarchy","階層"],["hypothesis","仮説"],["implicit","暗黙の"],
+ ["incentive","動機、誘因"],["inevitable","避けられない"],["infer","推論する"],
+ ["inherent","固有の"],["integrate","統合する"],["intuitive","直感的な"],
+ ["legitimate","正当な"],["manipulate","操作する"],["mitigate","緩和する"],
+ ["notion","概念"],["obscure","不明瞭な"],["pervasive","広く行き渡った"],
+ ["plausible","もっともらしい"],["presume","推定する"],["prevalent","普及した"],
+ ["prioritize","優先順位をつける"],["rational","合理的な"],["reluctant","気が進まない"],
+ ["resilient","回復力のある"],["scrutiny","精査"],["subsequent","その後の"],
+ ["sufficient","十分な"],["underlying","根底にある"],["versatile","多才な"],
+
+ ["accumulate","蓄積する"],["acknowledge","認める"],["acquaint","知らせる"],
+ ["adverse","不利な"],["allocate","割り当てる"],["alter","変える"],
+ ["ambitious","野心的な"],["amend","修正する"],["amplify","増幅する"],
+ ["analogous","類似した"],["annual","年次の"],["anomaly","異常"],
+ ["apparent","明白な"],["arbitrate","仲裁する"],["array","配列、勢ぞろい"],
+ ["assess","評価する"],["assimilate","同化する"],["attain","達成する"],
+ ["augment","増強する"],["authentic","本物の"],["autonomous","自律的な"],
+ ["bestow","授ける"],["blunt","鈍い"],
+ ["bolster","強化する"],["boundary","境界"],["brittle","壊れやすい"],
+ ["candid","率直な"],["capricious","気まぐれな"],["catalyst","触媒、きっかけ"],
+ ["caveat","注意事項"],["chronic","慢性的な"],["circumvent","回避する"],
+ ["clarify","明確にする"],["coincide","一致する"],["collaborate","協力する"],
+ ["commence","開始する"],["compelling","説得力のある"],["complement","補完する"],
+ ["component","構成要素"],["comprise","構成する"],["conceal","隠す"],
+ ["concise","簡潔な"],["concurrent","同時に起こる"],["confine","限定する"],
+ ["congruent","一致する"],["consensus","総意"],["consolidate","統合する"],
+ ["constrain","制約する"],["contemplate","熟考する"],["contemporary","現代の"],
+ ["context","文脈"],["controversial","論争を呼ぶ"],["converge","収束する"],
+ ["coordinate","調整する"],["correspond","対応する"],["counteract","中和する"],
+ ["credible","信頼できる"],["criterion","基準"],["crucial","極めて重要な"],
+ ["cumulative","累積的な"],["curb","抑制する"],["debunk","誤りを暴く"],
+ ["decline","減少する"],["deficit","不足、赤字"],["delegate","委任する"],
+ ["deliberate","慎重な、故意の"],["demonstrate","実証する"],["denote","示す"],
+ ["deplete","枯渇させる"],["deploy","配置する"],["depict","描写する"],
+ ["deprive","奪う"],["designate","指定する"],["deteriorate","悪化する"],
+ ["devastate","壊滅させる"],["deviate","逸脱する"],["devise","考案する"],
+ ["dictate","指図する"],["differentiate","区別する"],["diligent","勤勉な"],
+ ["diminish","減少させる"],["discern","識別する"],["disclose","開示する"],
+ ["discount","割り引く、軽視する"],["discrete","個別の"],["disparity","格差"],
+ ["dispatch","派遣する"],["disperse","分散させる"],["disrupt","妨げる"],
+ ["dissent","異議"],["distort","歪める"],["diverge","分岐する"],
+ ["document","記録する"],["domain","領域"],["dominant","支配的な"],
+ ["downturn","下降、不況"],["drastic","抜本的な"],["durable","耐久性のある"],
+ ["dwindle","次第に減る"],["eccentric","風変わりな"],["elicit","引き出す"],
+ ["embed","埋め込む"],["embody","体現する"],["emerge","出現する"],
+ ["emphasize","強調する"],["enact","制定する"],
+ ["encompass","包含する"],["endorse","支持する"],["enforce","施行する"],
+ ["engage","関与させる"],["enrich","豊かにする"],["entail","伴う"],
+ ["envisage","思い描く"],["equilibrium","均衡"],["erode","侵食する"],
+ ["escalate","エスカレートする"],["essential","必須の"],["establish","確立する"],
+ ["estimate","見積もる"],["evaluate","評価する"],["evolve","進化する"],
+ ["exacerbate","悪化させる"],["exempt","免除された"],["exert","行使する"],
+ ["exhaustive","網羅的な"],["exotic","異国的な"],["expedite","促進する"],
+ ["exploit","活用する、搾取する"],["extract","抽出する"],
+ ["fabricate","でっち上げる"],["faction","派閥"],["feasible","実行可能な"],
+ ["finite","有限の"],["flaw","欠陥"],["flexible","柔軟な"],
+ ["forge","築き上げる、偽造する"],["formidable","手強い"],["foster","育成する"],
+ ["fraction","断片、ごく一部"],["fragile","壊れやすい"],["generate","生成する"],["genuine","本物の"],["grant","付与する"],
+ ["gravity","重大さ、重力"],["hamper","妨げる"],["harness","活用する"],
+ ["hazard","危険"],["hinder","妨げる"],["holistic","全体論的な"],
+ ["homogeneous","均質な"],["hostile","敵対的な"],["humble","謙虚な"],
+ ["hybrid","混成の"],["identical","同一の"],["ignite","点火する"],
+ ["illuminate","照らす、解明する"],["illustrate","説明する"],["immerse","没頭させる"],
+ ["impair","損なう"],["impede","妨げる"],["imperative","必須の、命令"],
+ ["implement","実行する"],["implication","含意、影響"],["imply","暗示する"],
+ ["impose","課す"],["impoverish","貧しくする"],["inadvertent","不注意の"],
+ ["incidental","付随的な"],["incite","扇動する"],["inclusive","包括的な"],
+ ["incorporate","組み込む"],["incremental","漸進的な"],["indifferent","無関心な"],
+ ["indispensable","不可欠な"],["induce","引き起こす"],["infect","感染させる"],
+ ["infinite","無限の"],["infringe","侵害する"],["ingenious","独創的な"],
+ ["inhibit","抑制する"],["initiate","開始する"],["innate","生まれつきの"],
+ ["innovate","革新する"],["insight","洞察"],["instigate","扇動する"],
+ ["instinctive","本能的な"],["integral","不可欠な"],["intensify","強める"],
+ ["interact","相互作用する"],["intermittent","断続的な"],["intervene","介入する"],
+ ["intricate","複雑な"],["intrinsic","本質的な"],["invariably","常に"],
+ ["invoke","呼び起こす"],["irrational","不合理な"],["irrelevant","無関係な"],
+ ["isolate","孤立させる"],["jeopardize","危険にさらす"],["justify","正当化する"],
+ ["lament","嘆く"],["latent","潜在的な"],["lethargic","無気力な"],
+ ["leverage","活用する"],["lucid","明快な"],["lucrative","儲かる"],
+ ["mandate","義務付ける"],["marginal","わずかな"],["meager","乏しい"],
+ ["mediate","仲介する"],["meticulous","几帳面な"],["migrate","移住する"],
+ ["minimal","最小限の"],["modest","控えめな"],["momentum","勢い"],
+ ["mundane","平凡な"],["mutual","相互の"],["negate","無効にする"],
+ ["negligible","無視できるほどの"],["neutral","中立の"],["nuance","微妙な違い"],
+ ["nurture","育む"],["obsolete","時代遅れの"],["obstacle","障害"],
+ ["obtain","得る"],["offset","相殺する"],["ominous","不吉な"],
+ ["optimal","最適な"],["outweigh","上回る"],["overt","明白な"],
+ ["paradox","逆説"],["parallel","並行する"],["partake","参加する"],
+ ["peculiar","独特な"],["penetrate","浸透する"],["perceive","知覚する"],
+ ["periphery","周辺"],["perpetual","永続的な"],["persistent","持続的な"],
+ ["perspective","視点"],["pertinent","関連性のある"],["pinpoint","正確に示す"],
+ ["plummet","急落する"],["polarize","二極化させる"],["ponder","熟考する"],
+ ["portray","描写する"],["postulate","仮定する"],["potent","強力な"],
+ ["pragmatic","実用的な"],["precede","先行する"],["precise","正確な"],
+ ["predominant","優勢な"],["preliminary","予備の"],["premise","前提"],
+ ["preserve","保存する"],["presumably","おそらく"],["prevail","普及する"],
+ ["proficient","熟達した"],["profound","深遠な"],["prolong","長引かせる"],
+ ["prominent","顕著な"],["prompt","促す"],["prosper","繁栄する"],
+ ["provoke","誘発する"],["proximity","近接"],["prudent","慎重な"],
+ ["quantify","数値化する"],["radical","急進的な"],["random","無作為の"],
+ ["realm","領域"],["reciprocal","相互の"],["reconcile","和解させる"],
+ ["redundant","余分な"],["refine","洗練する"],["refute","反論する"],
+ ["regulate","規制する"],["reinforce","強化する"],["reiterate","繰り返し言う"],
+ ["relevant","関連性のある"],["relinquish","放棄する"],["render","〜にする、提供する"],
+ ["repel","撃退する"],["resolve","解決する"],["resort","頼る"],
+ ["restrain","抑制する"],["retain","保持する"],["retrieve","取り戻す"],
+ ["reveal","明らかにする"],["revenue","収益"],["revise","修正する"],
+ ["rigid","厳格な"],["robust","頑強な"],["rudimentary","初歩的な"],
+ ["salient","顕著な"],["sanction","制裁、容認する"],["scope","範囲"],
+ ["sequence","連続"],["simultaneous","同時の"],["skeptical","懐疑的な"],
+ ["solitary","孤独な"],["sparse","まばらな"],["spectrum","範囲、スペクトル"],
+ ["sporadic","散発的な"],["stagnant","停滞した"],["stark","厳しい、明白な"],
+ ["stem","由来する"],["stimulate","刺激する"],["strenuous","骨の折れる"],
+ ["stringent","厳格な"],["subsidy","補助金"],["substantial","かなりの"],
+ ["subtle","微妙な"],["succinct","簡潔な"],["superficial","表面的な"],["supplement","補足する"],["surge","急増する"],
+ ["suspend","一時停止する"],["sustain","持続させる"],["symmetry","対称性"],
+ ["synthesis","統合"],["tangible","明白な、有形の"],["tedious","退屈な"],
+ ["temperate","穏やかな"],["tentative","暫定的な"],["terminate","終わらせる"],
+ ["thorough","徹底的な"],["thrive","繁栄する"],["transient","一時的な"],
+ ["transmit","伝達する"],["trivial","些細な"],["turbulent","乱気流の、激動の"],
+ ["ubiquitous","至る所にある"],["undermine","弱体化させる"],["uniform","均一な"],
+ ["unprecedented","前例のない"],["utilize","活用する"],["vague","曖昧な"],
+ ["validate","検証する"],["vast","広大な"],["verify","検証する"],
+ ["viable","実行可能な"],["vigorous","精力的な"],["vital","不可欠な"],
+ ["volatile","変動しやすい"],["vulnerable","脆弱な"],["yield","産出する、譲る"]
+];
+
+/* ============== グローバル状態 ============== */
+let WORDS = [];          // {id, en, jp}
+let SRS = {};             // wordId -> {stage, nextReview, lastReview, firstLearn}
+let LOG = [];              // {wordId, ts, elapsedMs, correct, stageBefore}
+let currentQ = null;
+let storageReady = false;
+let questionShownAt = null; // 問題が表示された時刻（回答時間計測用）
+
+const STAGE_INTERVALS_MS = [
+  10*60*1000,            // stage0→1: 10分後（直後の復習）
+  1*24*3600*1000,        // 1日
+  2*24*3600*1000,        // 2日
+  4*24*3600*1000,        // 4日
+  7*24*3600*1000,        // 7日
+  15*24*3600*1000,       // 15日
+  30*24*3600*1000        // 30日（以降マスター扱い）
+];
+const MAX_STAGE = STAGE_INTERVALS_MS.length;
+
+/* ============== ストレージ（完全ローカル版: localStorageを使用） ==============
+   このファイルをPC上の任意のフォルダに置いてブラウザで直接開くだけで動作します。
+   データはサーバーには一切送信されず、開いているブラウザのlocalStorageに
+   保存されます（インターネット接続不要）。
+   ※ localStorageはブラウザ単位の保存のため、別のブラウザ/別PCに移す場合は
+     画面右上の「バックアップ保存／読込」でJSONファイルとして書き出し・復元してください。
+*/
+/* ---- プロファイル機能 ----
+   localStorageは file:// 環境ではブラウザ単位でほぼ共有されてしまうため、
+   ファイル名を変えただけでは「0からやり直す」ことにならない。
+   そこで保存先キーに「プロファイル名」を含め、名前を切り替えることで
+   完全に独立したデータ領域を作れるようにする。
+*/
+const ACTIVE_PROFILE_KEY = 'ebbinghaus-vocab-active-profile';
+function getActiveProfile(){
+  try{ return localStorage.getItem(ACTIVE_PROFILE_KEY) || 'default'; }
+  catch(e){ return 'default'; }
+}
+function setActiveProfile(name){
+  try{ localStorage.setItem(ACTIVE_PROFILE_KEY, name); }catch(e){}
+}
+let CURRENT_PROFILE = 'default';
+function lsPrefix(){ return 'ebbinghaus-vocab::'+CURRENT_PROFILE+'::'; }
+
+let LS_AVAILABLE = true;
+let MEM_FALLBACK = {}; // localStorageが使えない場合の一時的な代替（保存はされない）
+
+function checkLocalStorageAvailable(){
+  try{
+    const testKey = lsPrefix()+'__test__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function lsGet(key){
+  if(!LS_AVAILABLE) return MEM_FALLBACK[key] ?? null;
+  try{
+    const raw = localStorage.getItem(lsPrefix()+key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    console.error('localStorage読み込みに失敗しました', e);
+    return MEM_FALLBACK[key] ?? null;
+  }
+}
+function lsSet(key, value){
+  if(!LS_AVAILABLE){
+    MEM_FALLBACK[key] = value;
+    return false;
+  }
+  try{
+    localStorage.setItem(lsPrefix()+key, JSON.stringify(value));
+    return true;
+  }catch(e){
+    console.error('localStorage保存に失敗しました', e);
+    MEM_FALLBACK[key] = value;
+    LS_AVAILABLE = false;
+    return false;
+  }
+}
+
+async function loadAll(){
+  try{
+    WORDS = lsGet('words') || DEFAULT_WORDS.map((p,i)=>({id:'w'+i,en:p[0],jp:p[1]}));
+    if(!Array.isArray(WORDS) || WORDS.length===0){
+      WORDS = DEFAULT_WORDS.map((p,i)=>({id:'w'+i,en:p[0],jp:p[1]}));
+    }
+  }catch(e){
+    console.error('単語データの読み込みに失敗。初期セットで起動します。', e);
+    WORDS = DEFAULT_WORDS.map((p,i)=>({id:'w'+i,en:p[0],jp:p[1]}));
+  }
+  try{
+    SRS = lsGet('srs') || {};
+    if(typeof SRS !== 'object' || SRS===null) SRS = {};
+  }catch(e){ SRS = {}; }
+  try{
+    LOG = lsGet('log') || [];
+    if(!Array.isArray(LOG)) LOG = [];
+  }catch(e){ LOG = []; }
+
+  // 未登録の単語にSRS初期値を付与（古いデータ形式やSRSが壊れていても自己修復する）
+  const now = Date.now();
+  WORDS.forEach(w=>{
+    if(!SRS[w.id] || typeof SRS[w.id] !== 'object'){
+      SRS[w.id] = {stage:0, nextReview:now, lastReview:null, firstLearn:null};
+    }
+  });
+  storageReady = true;
+  saveWords(); saveSRS();
+}
+async function saveWords(){ lsSet('words', WORDS); }
+async function saveSRS(){ lsSet('srs', SRS); }
+async function saveLog(){ lsSet('log', LOG); }
+
+/* ---- バックアップ（エクスポート / インポート） ---- */
+function exportBackup(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    words: WORDS, srs: SRS, log: LOG
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  a.href = url;
+  a.download = `vocab-backup-${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function importBackup(file){
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.words || !data.srs) throw new Error('形式が不正です');
+      WORDS = data.words; SRS = data.srs; LOG = data.log || [];
+      await saveWords(); await saveSRS(); await saveLog();
+      alert('バックアップを読み込みました。');
+      showTab(currentTabName());
+    }catch(err){
+      alert('読み込みに失敗しました。正しいバックアップJSONファイルか確認してください。');
+    }
+  };
+  reader.readAsText(file);
+}
+function currentTabName(){
+  for(const k of Object.keys(tabs)) if(tabs[k].classList.contains('active')) return k;
+  return 'quiz';
+}
+
+/* ============== タブ切替 ============== */
+const tabs = {quiz:document.getElementById('tab-quiz'), stats:document.getElementById('tab-stats'), words:document.getElementById('tab-words')};
+const views = {quiz:document.getElementById('view-quiz'), stats:document.getElementById('view-stats'), words:document.getElementById('view-words')};
+function showTab(name){
+  Object.keys(tabs).forEach(k=>{
+    tabs[k].classList.toggle('active', k===name);
+    views[k].style.display = (k===name)?'block':'none';
+  });
+  if(name==='quiz') renderQuiz();
+  if(name==='stats') renderStats();
+  if(name==='words') renderWords();
+}
+tabs.quiz.onclick=()=>showTab('quiz');
+tabs.stats.onclick=()=>showTab('stats');
+tabs.words.onclick=()=>showTab('words');
+
+/* ============== クイズロジック ============== */
+function pickDueWord(){
+  const now = Date.now();
+  const due = WORDS.filter(w=>SRS[w.id].nextReview<=now);
+  if(due.length===0) return null;
+  // 優先順位:
+  // ①一度でも解いたことがある単語(間違えた・正解した単語)を最優先する。
+  //   これにより「10分後に再出題」のような直近の復習が、大量にある
+  //   未着手の新規単語の山に埋もれて後回しになるのを防ぐ。
+  // ②同じグループ内では、次回復習日時が古い順（=期限切れが長い順）に出題する。
+  due.sort((a,b)=>{
+    const sa = SRS[a.id], sb = SRS[b.id];
+    const reviewedA = sa.lastReview !== null;
+    const reviewedB = sb.lastReview !== null;
+    if(reviewedA !== reviewedB) return reviewedA ? -1 : 1; // 既習を優先
+    return sa.nextReview - sb.nextReview;
+  });
+  return due[0];
+}
+// 意味欄が「捨てる、放棄する」のように複数訳語を含む場合、表示用には先頭の1訳語だけを使う。
+// こうすることで正解・誤答とも常に単一の訳語に統一され、文言の長さや形式だけで正解が
+// 見分けられてしまう問題を防ぐ。
+function primaryMeaning(jp){
+  return jp.split(/[、,]/)[0].trim();
+}
+function makeQuestion(word){
+  const others = WORDS.filter(w=>w.id!==word.id);
+  shuffle(others);
+  const correct = primaryMeaning(word.jp);
+  // ダミー候補は、正解と表記が重複しないように選ぶ
+  const distractorPool = others.map(w=>primaryMeaning(w.jp)).filter(m=>m!==correct);
+  const distractors = [];
+  for(const m of distractorPool){
+    if(distractors.length>=4) break;
+    if(!distractors.includes(m)) distractors.push(m);
+  }
+  const choices = shuffle([correct, ...distractors]);
+  return {word, choices, correctAnswer: correct, answered:false};
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function dueCount(){
+  const now = Date.now();
+  return WORDS.filter(w=>SRS[w.id].nextReview<=now).length;
+}
+function masteredCount(){
+  return WORDS.filter(w=>SRS[w.id].stage>=MAX_STAGE).length;
+}
+function accuracyOverall(){
+  if(LOG.length===0) return '—';
+  const c = LOG.filter(l=>l.correct).length;
+  return Math.round(c/LOG.length*100)+'%';
+}
+
+function renderQuiz(){
+  const el = views.quiz;
+  el.innerHTML = `
+    <div class="stats-strip">
+      <div class="stat-box"><div class="num">${dueCount()}</div><div class="lbl">本日の復習対象</div></div>
+      <div class="stat-box"><div class="num">${masteredCount()}</div><div class="lbl">マスター済み単語</div></div>
+      <div class="stat-box"><div class="num">${accuracyOverall()}</div><div class="lbl">通算正答率</div></div>
+      <div class="stat-box"><div class="num">${LOG.length}</div><div class="lbl">総回答数</div></div>
+    </div>
+    <div class="card" id="quiz-card"></div>
+  `;
+  const word = pickDueWord();
+  if(!word){
+    document.getElementById('quiz-card').innerHTML = `
+      <div class="empty-state">
+        <div class="big">📖</div>
+        <p>現在、復習期限が来ている単語はありません。<br>
+        エビングハウスの忘却曲線に沿って、次の復習タイミングまでお待ちください。</p>
+        <p class="muted">単語リストタブから単語を追加すると、新規学習として出題できます。</p>
+      </div>`;
+    return;
+  }
+  currentQ = makeQuestion(word);
+  renderQuestionCard();
+}
+
+function renderQuestionCard(){
+  const q = currentQ;
+  const stage = SRS[q.word.id].stage;
+  const isNew = SRS[q.word.id].lastReview===null;
+  const el = document.getElementById('quiz-card');
+  el.innerHTML = `
+    <div class="quiz-meta">
+      <span>${isNew ? '新規学習' : '復習 ・ ステージ '+stage+'/'+MAX_STAGE}</span>
+      <span>5択問題</span>
+    </div>
+    <div class="quiz-word">${q.word.en}</div>
+    <div class="quiz-hint">この単語の意味として正しいものを選んでください</div>
+    <div class="choices" id="choices"></div>
+    <div class="feedback" id="feedback"></div>
+  `;
+  const keys=['A','B','C','D','E'];
+  const cdiv = document.getElementById('choices');
+  questionShownAt = Date.now();
+  q.choices.forEach((choice,i)=>{
+    const b = document.createElement('button');
+    b.className='choice-btn';
+    b.innerHTML = `<span class="key">${keys[i]}</span><span>${choice}</span>`;
+    b.onclick = ()=>answerQuestion(choice, b);
+    cdiv.appendChild(b);
+  });
+}
+
+async function answerQuestion(choice, btn){
+  if(currentQ.answered) return;
+  currentQ.answered = true;
+  const correct = choice===currentQ.correctAnswer;
+  document.querySelectorAll('.choice-btn').forEach(b=>{
+    b.disabled = true;
+    const txt = b.querySelector('span:last-child').textContent;
+    if(txt===currentQ.correctAnswer) b.classList.add('correct');
+    else if(b===btn) b.classList.add('wrong');
+  });
+
+  const word = currentQ.word;
+  const srs = SRS[word.id];
+  const now = Date.now();
+  const elapsed = srs.lastReview ? (now - srs.lastReview) : (srs.firstLearn ? now - srs.firstLearn : 0);
+
+  // ログに記録（実際の忘却曲線データ＋回答にかかった時間）
+  const responseMs = questionShownAt ? (now - questionShownAt) : null;
+  LOG.push({wordId:word.id, ts:now, elapsedMs:elapsed, correct, stageBefore:srs.stage, responseMs});
+
+  // SRS更新（エビングハウス間隔ベース）
+  if(correct){
+    srs.stage = Math.min(srs.stage+1, MAX_STAGE);
+  }else{
+    srs.stage = Math.max(0, srs.stage-2); // 不正解は大きく巻き戻す
+  }
+  if(!srs.firstLearn) srs.firstLearn = now;
+  srs.lastReview = now;
+  // 「新しく到達したステージ」に対応する間隔を使う。
+  // 例: ステージ0→1（newStage=1）のときは配列の0番目（10分後）。
+  // 不正解でステージが0に戻った場合も同様に0番目（10分後）が使われる。
+  const intervalIdx = Math.max(0, Math.min(srs.stage-1, STAGE_INTERVALS_MS.length-1));
+  srs.nextReview = now + STAGE_INTERVALS_MS[intervalIdx];
+
+  await saveSRS(); await saveLog();
+
+  const fb = document.getElementById('feedback');
+  fb.style.color = correct ? '#3c5a48' : '#a8412b';
+  const nextDays = (STAGE_INTERVALS_MS[intervalIdx]/(24*3600*1000)).toFixed(2);
+  fb.innerHTML = correct
+    ? `正解です。次回の復習は約 ${nextDays} 日後に設定されました。`
+    : `不正解です。正解は「${currentQ.correctAnswer}」。ステージを下げ、近いうちに再度出題します。`;
+
+  const next = document.createElement('button');
+  next.className='next-btn';
+  next.textContent='次の問題へ';
+  next.onclick = renderQuiz;
+  document.getElementById('quiz-card').appendChild(next);
+}
+
+/* ============== 単語リスト管理 ============== */
+function renderWords(){
+  const el = views.words;
+  const now = Date.now();
+  const rows = WORDS.map(w=>{
+    const s = SRS[w.id];
+    const due = s.nextReview<=now;
+    const stageClass = 's'+Math.min(s.stage, 6);
+    const nextStr = s.lastReview ? new Date(s.nextReview).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '未学習';
+    return `<tr>
+      <td>${w.en}</td>
+      <td>${w.jp}</td>
+      <td><span class="stage-pill ${stageClass}">St.${s.stage}</span></td>
+      <td>${due?'<b style="color:#a8412b;">期限到来</b>':nextStr}</td>
+      <td><button class="link-btn" data-del="${w.id}">削除</button></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="card">
+      <p class="muted">単語を追加すると、自動で復習スケジュールに組み込まれます（エビングハウスの間隔: 10分→1日→2日→4日→7日→15日→30日）。</p>
+      <div class="add-row">
+        <input id="new-en" placeholder="英単語 (例: meticulous)">
+        <input id="new-jp" placeholder="意味 (例: 几帳面な)">
+        <button id="add-word-btn">追加</button>
+      </div>
+      <p class="muted" style="margin-top:14px;">単語帳に含まれる単語数: ${WORDS.length}語。組み込みの初期単語セット（最新版）にだけ存在する単語があれば、リセットせずに追加で取り込めます。</p>
+      <button id="merge-defaults-btn" class="link-btn">組み込み単語セットの新しい単語を追加で取り込む</button>
+    </div>
+    <div class="card">
+      <table class="wordlist">
+        <thead><tr><th>単語</th><th>意味</th><th>進捗</th><th>次回復習</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('add-word-btn').onclick = async ()=>{
+    const en = document.getElementById('new-en').value.trim();
+    const jp = document.getElementById('new-jp').value.trim();
+    if(!en||!jp) return;
+    const id = 'w'+Date.now()+Math.floor(Math.random()*1000);
+    WORDS.push({id,en,jp});
+    SRS[id] = {stage:0, nextReview:Date.now(), lastReview:null, firstLearn:null};
+    await saveWords(); await saveSRS();
+    renderWords();
+  };
+  document.getElementById('merge-defaults-btn').onclick = async ()=>{
+    const existing = new Set(WORDS.map(w=>w.en.toLowerCase()));
+    const now = Date.now();
+    let added = 0;
+    DEFAULT_WORDS.forEach(([en,jp])=>{
+      if(!existing.has(en.toLowerCase())){
+        const id = 'w'+Date.now()+Math.floor(Math.random()*100000)+added;
+        WORDS.push({id,en,jp});
+        SRS[id] = {stage:0, nextReview:now, lastReview:null, firstLearn:null};
+        existing.add(en.toLowerCase());
+        added++;
+      }
+    });
+    await saveWords(); await saveSRS();
+    alert(added>0 ? `${added}語を新たに追加しました。` : '追加できる新しい単語はありませんでした（すでにすべて取り込み済みです）。');
+    renderWords();
+  };
+  el.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.getAttribute('data-del');
+      WORDS = WORDS.filter(w=>w.id!==id);
+      delete SRS[id];
+      await saveWords(); await saveSRS();
+      renderWords();
+    };
+  });
+}
+
+/* ============== 忘却曲線統計 ============== */
+// 経過時間バケット（実測データ集計用）
+const BUCKETS = [
+  {label:'〜20分', maxMs:20*60*1000},
+  {label:'〜1時間', maxMs:60*60*1000},
+  {label:'〜1日', maxMs:24*3600*1000},
+  {label:'〜2日', maxMs:2*24*3600*1000},
+  {label:'〜4日', maxMs:4*24*3600*1000},
+  {label:'〜7日', maxMs:7*24*3600*1000},
+  {label:'〜15日', maxMs:15*24*3600*1000},
+  {label:'〜30日', maxMs:30*24*3600*1000},
+  {label:'30日〜', maxMs:Infinity},
+];
+function computeRetentionCurve(){
+  // バケットごとに、その経過時間で復習されたときの正答率を計算（lastReviewがあるもの=本当の「再生」のみ対象）
+  const buckets = BUCKETS.map(()=>({total:0,correct:0}));
+  LOG.forEach(l=>{
+    if(l.elapsedMs===0) return; // 初回学習は忘却曲線データに含めない
+    for(let i=0;i<BUCKETS.length;i++){
+      if(l.elapsedMs<=BUCKETS[i].maxMs){
+        buckets[i].total++;
+        if(l.correct) buckets[i].correct++;
+        break;
+      }
+    }
+  });
+  return buckets.map((b,i)=>({
+    label:BUCKETS[i].label,
+    rate: b.total>0 ? b.correct/b.total : null,
+    n: b.total
+  }));
+}
+// エビングハウスの理論曲線 R = e^(-t/S)  Sは安定性パラメータ（簡易デモ用に1.5日相当で正規化）
+function theoreticalCurve(){
+  const S = 1.8; // 日換算の安定度（デモ用の固定値）
+  const tDaysAtBucket = [0.014,0.04,1,2,4,7,15,30,40];
+  return tDaysAtBucket.map(t=>Math.exp(-t/S));
+}
+
+// ステージ（復習回数）ごとの平均回答時間・正答率を集計
+// 「繰り返すほど復習が楽になっていく」(再学習コストの低下)を可視化するためのデータ
+function computeStageTimings(){
+  const maxStage = MAX_STAGE; // 0..MAX_STAGE
+  const buckets = [];
+  for(let s=0; s<=maxStage; s++) buckets.push({stage:s, total:0, correct:0, sumMs:0, nWithTime:0});
+  LOG.forEach(l=>{
+    const s = Math.min(l.stageBefore, maxStage);
+    const b = buckets[s];
+    b.total++;
+    if(l.correct) b.correct++;
+    if(typeof l.responseMs === 'number' && l.responseMs>=0 && l.responseMs < 5*60*1000){
+      b.sumMs += l.responseMs;
+      b.nWithTime++;
+    }
+  });
+  return buckets.map(b=>({
+    stage: b.stage,
+    avgSec: b.nWithTime>0 ? (b.sumMs/b.nWithTime/1000) : null,
+    accuracy: b.total>0 ? b.correct/b.total : null,
+    n: b.total
+  }));
+}
+
+function drawStageTimingChart(container, data){
+  const w = Math.min(container.clientWidth||760, 760);
+  const h = 260;
+  const padL=48, padR=16, padT=16, padB=46;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+  const valid = data.filter(d=>d.avgSec!==null);
+  if(valid.length===0){
+    container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">
+      <text x="${w/2}" y="${h/2}" text-anchor="middle" font-size="13" fill="#8a8270">まだ回答時間のデータがありません。学習を進めると表示されます。</text>
+    </svg>`;
+    return;
+  }
+  const maxSec = Math.max(...valid.map(d=>d.avgSec)) * 1.15;
+  const n = data.length;
+  const slot = plotW/n;
+  const bw = slot*0.6;
+  const yAt = sec => padT + plotH*(1-(sec/maxSec));
+
+  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">`;
+  for(let gy=0; gy<=4; gy++){
+    const sec = maxSec*gy/4;
+    const y = yAt(sec);
+    svg += `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#cdbf9c" stroke-width="1"/>`;
+    svg += `<text x="${padL-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#766f5e">${sec.toFixed(1)}秒</text>`;
+  }
+  data.forEach((d,i)=>{
+    const cx = padL + slot*i + slot/2;
+    const label = d.stage>=MAX_STAGE ? 'マスター' : 'St.'+d.stage;
+    svg += `<text x="${cx}" y="${h-padB+18}" text-anchor="middle" font-size="10.5" fill="#766f5e">${label}</text>`;
+    if(d.avgSec!==null){
+      const y = yAt(d.avgSec);
+      const barH = (padT+plotH) - y;
+      svg += `<rect x="${cx-bw/2}" y="${y}" width="${bw}" height="${barH}" fill="#3c5a48" rx="2"/>`;
+      svg += `<text x="${cx}" y="${y-6}" text-anchor="middle" font-size="10.5" fill="#1d2b28">${d.avgSec.toFixed(1)}s</text>`;
+    }
+  });
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+function renderStats(){
+  const el = views.stats;
+  const data = computeRetentionCurve();
+  const theory = theoreticalCurve();
+  const totalReviews = LOG.length;
+  const reviewsWithElapsed = LOG.filter(l=>l.elapsedMs>0).length;
+
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">実測 忘却曲線（あなたの復習データより算出）</h3>
+      <p class="muted">経過時間ごとに、その単語を再び見たときの正答率をプロットしています。点線はエビングハウスの理論曲線（R = e^(−t/S)）の参考値です。データが少ない区間は精度が下がります。</p>
+      <div class="chart-wrap" id="chart-holder"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:#3c5a48;"></span>実測の正答率（あなたのデータ）</span>
+        <span><span class="dot" style="background:#b5562b;"></span>エビングハウス理論曲線（参考）</span>
+      </div>
+    </div>
+    <div class="stats-strip">
+      <div class="stat-box"><div class="num">${totalReviews}</div><div class="lbl">総復習回数</div></div>
+      <div class="stat-box"><div class="num">${reviewsWithElapsed}</div><div class="lbl">忘却曲線データ件数</div></div>
+      <div class="stat-box"><div class="num">${masteredCount()}</div><div class="lbl">マスター済み単語</div></div>
+      <div class="stat-box"><div class="num">${WORDS.length}</div><div class="lbl">総単語数</div></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">ステージ別 平均回答時間（復習を重ねるほど楽になる様子）</h3>
+      <p class="muted">「忘却曲線」が時間経過による保持率の低下を表すのに対し、こちらは間隔反復の効果、つまり同じ単語を繰り返し復習するごとに、思い出すまでの時間（負担）がどう変化するかを示しています。一般的には、ステージが進むほど平均回答時間は短くなる傾向が見られます。</p>
+      <div class="chart-wrap" id="chart-holder2"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">区間別データ詳細</h3>
+      <table class="wordlist">
+        <thead><tr><th>経過時間</th><th>正答率（実測）</th><th>サンプル数</th></tr></thead>
+        <tbody>
+          ${data.map(d=>`<tr><td>${d.label}</td><td>${d.rate===null?'—':Math.round(d.rate*100)+'%'}</td><td>${d.n}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  drawChart(document.getElementById('chart-holder'), data, theory);
+  drawStageTimingChart(document.getElementById('chart-holder2'), computeStageTimings());
+}
+
+function drawChart(container, data, theory){
+  const w = Math.min(container.clientWidth||760, 760);
+  const h = 280;
+  const padL=42, padR=16, padT=16, padB=46;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+  const n = data.length;
+  const xAt = i => padL + (plotW*(i/(n-1)));
+  const yAt = r => padT + plotH*(1-r);
+
+  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">`;
+  // grid + y labels
+  for(let gy=0; gy<=4; gy++){
+    const r = gy/4;
+    const y = yAt(r);
+    svg += `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#cdbf9c" stroke-width="1"/>`;
+    svg += `<text x="${padL-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#766f5e">${Math.round(r*100)}%</text>`;
+  }
+  // x labels
+  data.forEach((d,i)=>{
+    svg += `<text x="${xAt(i)}" y="${h-padB+18}" text-anchor="middle" font-size="10.5" fill="#766f5e" transform="rotate(0)">${d.label}</text>`;
+  });
+
+  // theoretical line (dashed)
+  let tpath='';
+  theory.forEach((r,i)=>{
+    const x=xAt(i), y=yAt(r);
+    tpath += (i===0?'M':'L')+x+','+y+' ';
+  });
+  svg += `<path d="${tpath}" fill="none" stroke="#b5562b" stroke-width="2" stroke-dasharray="5,4"/>`;
+
+  // actual line (solid) - skip nulls but connect available points
+  const pts = data.map((d,i)=>({i,r:d.rate})).filter(p=>p.r!==null);
+  if(pts.length>0){
+    let apath='';
+    pts.forEach((p,idx)=>{
+      const x=xAt(p.i), y=yAt(p.r);
+      apath += (idx===0?'M':'L')+x+','+y+' ';
+    });
+    svg += `<path d="${apath}" fill="none" stroke="#3c5a48" stroke-width="2.5"/>`;
+    pts.forEach(p=>{
+      const x=xAt(p.i), y=yAt(p.r);
+      svg += `<circle cx="${x}" cy="${y}" r="4" fill="#3c5a48" stroke="#f3ede0" stroke-width="1.5"/>`;
+    });
+  } else {
+    svg += `<text x="${w/2}" y="${h/2}" text-anchor="middle" font-size="13" fill="#8a8270">まだ復習データがありません。学習を進めると曲線が描かれます。</text>`;
+  }
+
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+/* ============== 起動 ============== */
+(async function init(){
+  views.quiz.innerHTML = `<div class="loading">読み込み中…</div>`;
+
+  LS_AVAILABLE = checkLocalStorageAvailable();
+  CURRENT_PROFILE = getActiveProfile();
+  const profileLabel = document.getElementById('profile-label');
+  if(profileLabel) profileLabel.textContent = 'プロファイル: ' + CURRENT_PROFILE;
+
+  if(!LS_AVAILABLE){
+    const warn = document.createElement('div');
+    warn.style.cssText = 'background:#a8412b;color:#fff;padding:12px 16px;border-radius:2px;margin-bottom:16px;font-size:13.5px;';
+    warn.innerHTML = `⚠ このブラウザ環境ではローカル保存（localStorage）が使用できません（file:// で開いた際にブラウザがブロックしている可能性があります）。
+      このセッション中は一時的に利用できますが、ページを閉じる・再読み込みすると学習データは保存されません。
+      対処法: ① Chromeなら「設定 → プライバシーとセキュリティ → サイトの設定」で、このファイルのフォルダに対する例外を確認する。
+      ② または、簡易ローカルサーバー経由（例: <code>python -m http.server</code> をAAAフォルダ内で実行し、<code>http://localhost:8000/</code> からアクセス）で開くと解消することが多いです。
+      ③ Firefoxではこの制限が無いことが多いので、Firefoxで開くのも有効です。`;
+    document.querySelector('.wrap').insertBefore(warn, document.querySelector('header.top').nextSibling);
+  }
+
+  await loadAll();
+  showTab('quiz');
+
+  document.getElementById('export-btn').onclick = exportBackup;
+  document.getElementById('import-btn').onclick = ()=>document.getElementById('import-file').click();
+  document.getElementById('import-file').onchange = (e)=>{
+    if(e.target.files[0]) importBackup(e.target.files[0]);
+    e.target.value = '';
+  };
+  document.getElementById('switch-profile-btn').onclick = ()=>{
+    const name = prompt(
+      '切り替え先のプロファイル名を入力してください。\n'+
+      '・新しい名前を入れると、完全に0からのまっさらな状態で始まります。\n'+
+      '・既存の名前（例: default）を入れると、そのデータに戻れます。',
+      ''
+    );
+    if(name===null) return; // キャンセル
+    const trimmed = name.trim();
+    if(trimmed===''){ alert('プロファイル名を入力してください。'); return; }
+    setActiveProfile(trimmed);
+    location.reload();
+  };
+})();
+</script>
+</body>
+</html>
