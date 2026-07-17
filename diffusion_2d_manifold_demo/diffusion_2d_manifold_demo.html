@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Score smoothing on a 2D data manifold — a real diffusion model demo</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 760px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h1 { font-size: 20px; font-weight: 600; }
+  p.sub { color: #555; font-size: 14px; }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+  .controls label { font-size: 14px; color: #555; white-space: nowrap; }
+  .controls input[type=range] { flex: 1; min-width: 160px; }
+  .controls span.readout { font-size: 14px; font-weight: 600; min-width: 70px; text-align: right; }
+  button {
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #999;
+    background: #f6f6f6;
+    cursor: pointer;
+  }
+  button:hover { background: #ececec; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .hint { font-size: 12px; color: #666; margin-bottom: 0.75rem; }
+  #status { font-size: 13px; color: #555; margin-bottom: 1rem; min-height: 18px; }
+  canvas { width: 100%; display: block; border: 1px solid #eee; border-radius: 8px; }
+  .caption { font-size: 12px; color: #666; margin: 6px 0 24px; }
+</style>
+</head>
+<body>
+
+<h1>Score smoothing on a 2D data manifold</h1>
+<p class="sub">
+  A real 2-layer score network is trained with denoising score matching on 8 training points
+  placed on a ring (a toy 2D data manifold), then used to actually run reverse diffusion sampling.
+  Adjust the weight decay (regularization strength) to see the tradeoff between memorization
+  and interpolation — and how the effect is direction-dependent relative to the manifold.
+</p>
+
+<div class="controls">
+  <label for="wd2">Weight decay (regularization)</label>
+  <input type="range" id="wd2" min="0" max="200" value="0" oninput="updateWdLabel2()"/>
+  <span class="readout" id="wd-out2"></span>
+  <button id="trainBtn2" onclick="trainAndSample2D()">Train &amp; sample (~20s)</button>
+</div>
+<div class="hint">Try 0 first (memorization), then move right to see interpolation, then further right for over-smoothing.</div>
+<div id="status2"></div>
+
+<canvas id="learnedField" width="680" height="320"></canvas>
+<div class="caption">Learned score field (actual neural network output)</div>
+
+<canvas id="trueField" width="680" height="320"></canvas>
+<div class="caption">Exact/analytic score field (ground truth, for comparison)</div>
+
+<canvas id="scatterCanvas" width="680" height="320"></canvas>
+<div class="caption">Gray circle: data manifold / Blue dots: training data points / Red dots: samples generated via reverse diffusion</div>
+
+<script>
+/*
+ * Toy 2D diffusion model demo.
+ *
+ * Data: K points evenly spaced on a ring of radius Rman (a 1D manifold in 2D).
+ * Forward process (variance-exploding / VE-SDE): x_t = x0 + sigma(t) * eps.
+ * A 2-hidden-layer ReLU MLP is trained with denoising score matching (DSM)
+ * to approximate the score function grad_x log p_t(x_t).
+ * AdamW is used, with the weight-decay strength controlled by the slider.
+ *
+ * Reverse sampling uses a predictor-corrector scheme (ancestral VE-SDE step
+ * + a few Langevin correction steps at each noise level), which is the
+ * standard approach from Song & Ermon's score-based generative modeling work.
+ *
+ * The point of the demo: regularization (weight decay) smooths the network's
+ * score function. Because the true score is naturally "sharp" in the
+ * direction tangent to the manifold (which training point to snap to) but
+ * already fairly smooth in the direction normal to the manifold (pulling
+ * back onto the ring), the same isotropic regularization has a much bigger
+ * effect on the tangential direction than the normal direction. This is why
+ * increasing weight decay causes samples to interpolate *along* the ring
+ * rather than blur *off* the ring.
+ */
+
+// ---- Network / problem configuration ----
+const H1 = 48, H2 = 48;      // hidden layer sizes
+const IN_DIM = 5;             // network input: [x, y, t, sin(2*pi*t), cos(2*pi*t)]
+const sigmaMin2 = 0.10, sigmaMax2 = 1.8;  // noise schedule range (VE-SDE)
+const Rman = 1.3, K = 8;      // manifold radius and number of training points
+
+const trainPts = [];
+for (let k = 0; k < K; k++) {
+  const a = 2 * Math.PI * k / K;
+  trainPts.push([Rman * Math.cos(a), Rman * Math.sin(a)]);
+}
+
+// Network parameters + Adam optimizer state (populated by initNet)
+let W1, b1, W2, b2, W3x, b3x, W3y, b3y;
+let mW1, vW1, mb1, vb1, mW2, vW2, mb2, vb2, mW3x, vW3x, mb3x, vb3x, mW3y, vW3y, mb3y, vb3y, adamT;
+
+// Standard normal sample via Box-Muller
+function randn() {
+  const u = Math.random() || 1e-9, v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Noise schedule: sigma grows geometrically from sigmaMin2 to sigmaMax2 as t goes 0 -> 1
+function sigmaOf(t) { return sigmaMin2 * Math.pow(sigmaMax2 / sigmaMin2, t); }
+
+function clip(v, l) { return v > l ? l : (v < -l ? -l : v); }
+
+// He initialization scale for a ReLU layer with the given fan-in
+function he(fanIn) { return Math.sqrt(2 / fanIn); }
+
+function wdFromSlider(v) { return v * 0.0004; } // slider 0..200 -> effective weight decay 0..0.08
+
+function initNet() {
+  W1 = new Array(H1 * IN_DIM); b1 = new Array(H1).fill(0);
+  for (let j = 0; j < H1; j++) for (let d = 0; d < IN_DIM; d++) W1[j * IN_DIM + d] = randn() * he(IN_DIM);
+
+  W2 = new Array(H2 * H1); b2 = new Array(H2).fill(0);
+  for (let k = 0; k < H2; k++) for (let j = 0; j < H1; j++) W2[k * H1 + j] = randn() * he(H1);
+
+  W3x = new Array(H2); W3y = new Array(H2);
+  for (let k = 0; k < H2; k++) { W3x[k] = randn() * he(H2); W3y[k] = randn() * he(H2); }
+  b3x = 0; b3y = 0;
+
+  mW1 = new Array(H1 * IN_DIM).fill(0); vW1 = new Array(H1 * IN_DIM).fill(0);
+  mb1 = new Array(H1).fill(0); vb1 = new Array(H1).fill(0);
+  mW2 = new Array(H2 * H1).fill(0); vW2 = new Array(H2 * H1).fill(0);
+  mb2 = new Array(H2).fill(0); vb2 = new Array(H2).fill(0);
+  mW3x = new Array(H2).fill(0); vW3x = new Array(H2).fill(0);
+  mW3y = new Array(H2).fill(0); vW3y = new Array(H2).fill(0);
+  mb3x = 0; vb3x = 0; mb3y = 0; vb3y = 0; adamT = 0;
+}
+
+// Input features for the network: raw (x, y, t) plus a small Fourier-style
+// time embedding (sin/cos), which gives a single-hidden-layer-per-step MLP
+// enough flexibility to represent a score that varies a lot across t.
+function feat(x, y, t) {
+  return [x, y, t, Math.sin(2 * Math.PI * t), Math.cos(2 * Math.PI * t)];
+}
+
+// Forward pass through the 2-hidden-layer score network.
+// Returns predicted score (ox, oy) plus intermediate activations needed for backprop.
+function forward(x, y, t) {
+  const f = feat(x, y, t);
+
+  const z1 = new Array(H1), h1 = new Array(H1);
+  for (let j = 0; j < H1; j++) {
+    let z = b1[j];
+    for (let d = 0; d < IN_DIM; d++) z += f[d] * W1[j * IN_DIM + d];
+    z1[j] = z; h1[j] = z > 0 ? z : 0;
+  }
+
+  const z2 = new Array(H2), h2 = new Array(H2);
+  for (let k = 0; k < H2; k++) {
+    let z = b2[k];
+    for (let j = 0; j < H1; j++) z += h1[j] * W2[k * H1 + j];
+    z2[k] = z; h2[k] = z > 0 ? z : 0;
+  }
+
+  let ox = b3x, oy = b3y;
+  for (let k = 0; k < H2; k++) { ox += h2[k] * W3x[k]; oy += h2[k] * W3y[k]; }
+
+  return { ox, oy, f, z1, h1, z2, h2 };
+}
+
+// One AdamW training step using a fresh mini-batch of denoising-score-matching samples.
+// For each sample: pick a random training point x0, a random noise level sigma(t),
+// and a noise draw eps, forming x_t = x0 + sigma*eps. The DSM loss is
+// (sigma * score_theta(x_t, t) + eps)^2, which drives score_theta(x_t, t) -> -eps/sigma,
+// i.e. the true score of the noised data distribution.
+function trainStep(wd, batch, g) {
+  g.gW1.fill(0); g.gb1.fill(0); g.gW2.fill(0); g.gb2.fill(0); g.gW3x.fill(0); g.gW3y.fill(0);
+  let gb3xv = 0, gb3yv = 0;
+
+  for (let s = 0; s < batch; s++) {
+    const k = Math.floor(Math.random() * K);
+    const x0 = trainPts[k][0], y0 = trainPts[k][1];
+    const t = Math.random();
+    const sigma = sigmaOf(t);
+    const epsx = randn(), epsy = randn();
+    const xt = x0 + sigma * epsx, yt = y0 + sigma * epsy;
+
+    const r = forward(xt, yt, t);
+    // Residual is clipped defensively against rare extreme noise draws destabilizing training.
+    const rx = clip(sigma * r.ox + epsx, 8), ry = clip(sigma * r.oy + epsy, 8);
+    const dLdox = 2 * rx * sigma / batch, dLdoy = 2 * ry * sigma / batch;
+
+    // Backprop: output layer
+    for (let kk = 0; kk < H2; kk++) { g.gW3x[kk] += dLdox * r.h2[kk]; g.gW3y[kk] += dLdoy * r.h2[kk]; }
+    gb3xv += dLdox; gb3yv += dLdoy;
+
+    // Backprop: second hidden layer
+    const dh2 = new Array(H2);
+    for (let kk = 0; kk < H2; kk++) {
+      const dh = dLdox * W3x[kk] + dLdoy * W3y[kk];
+      dh2[kk] = r.z2[kk] > 0 ? dh : 0;
+    }
+    for (let kk = 0; kk < H2; kk++) {
+      for (let j = 0; j < H1; j++) g.gW2[kk * H1 + j] += dh2[kk] * r.h1[j];
+      g.gb2[kk] += dh2[kk];
+    }
+
+    // Backprop: first hidden layer
+    const dh1 = new Array(H1).fill(0);
+    for (let kk = 0; kk < H2; kk++) for (let j = 0; j < H1; j++) dh1[j] += dh2[kk] * W2[kk * H1 + j];
+    for (let j = 0; j < H1; j++) {
+      const dz1 = r.z1[j] > 0 ? dh1[j] : 0;
+      for (let d = 0; d < IN_DIM; d++) g.gW1[j * IN_DIM + d] += dz1 * r.f[d];
+      g.gb1[j] += dz1;
+    }
+  }
+
+  adamT++;
+  const lr = 0.02, beta1 = 0.9, beta2 = 0.999, epsA = 1e-8;
+
+  // Standard AdamW update: gradient step plus decoupled weight decay.
+  function upd(p, gr, m, v, decay) {
+    for (let i = 0; i < p.length; i++) {
+      const gi = clip(gr[i], 10);
+      m[i] = beta1 * m[i] + (1 - beta1) * gi;
+      v[i] = beta2 * v[i] + (1 - beta2) * gi * gi;
+      const mh = m[i] / (1 - Math.pow(beta1, adamT));
+      const vh = v[i] / (1 - Math.pow(beta2, adamT));
+      p[i] -= lr * (mh / (Math.sqrt(vh) + epsA) + decay * p[i]);
+    }
+  }
+
+  // Weight decay is applied to weight matrices only, not biases (standard practice).
+  upd(W1, g.gW1, mW1, vW1, wd); upd(b1, g.gb1, mb1, vb1, 0);
+  upd(W2, g.gW2, mW2, vW2, wd); upd(b2, g.gb2, mb2, vb2, 0);
+  upd(W3x, g.gW3x, mW3x, vW3x, wd); upd(W3y, g.gW3y, mW3y, vW3y, wd);
+
+  const c1 = clip(gb3xv, 10), c2 = clip(gb3yv, 10);
+  mb3x = beta1 * mb3x + (1 - beta1) * c1; vb3x = beta2 * vb3x + (1 - beta2) * c1 * c1;
+  b3x -= lr * ((mb3x / (1 - Math.pow(beta1, adamT))) / (Math.sqrt(vb3x / (1 - Math.pow(beta2, adamT))) + epsA));
+  mb3y = beta1 * mb3y + (1 - beta1) * c2; vb3y = beta2 * vb3y + (1 - beta2) * c2 * c2;
+  b3y -= lr * ((mb3y / (1 - Math.pow(beta1, adamT))) / (Math.sqrt(vb3y / (1 - Math.pow(beta2, adamT))) + epsA));
+}
+
+// Exact/analytic score of a Gaussian-mixture data distribution (K point masses
+// convolved with noise of std sigma). Used only for the "ground truth" comparison panel.
+function trueScore(x, y, sigma) {
+  let wsum = 0, sx = 0, sy = 0;
+  const ws = [];
+  for (let k = 0; k < K; k++) {
+    const dx = x - trainPts[k][0], dy = y - trainPts[k][1];
+    const w = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+    ws.push(w); wsum += w;
+  }
+  for (let k = 0; k < K; k++) {
+    const w = ws[k] / wsum;
+    sx += w * (trainPts[k][0] - x); sy += w * (trainPts[k][1] - y);
+  }
+  return [sx / (sigma * sigma), sy / (sigma * sigma)];
+}
+
+// Draw one sample by running reverse diffusion from pure noise down to t=0,
+// using the trained network's score. Each step is a predictor (ancestral VE-SDE
+// update) followed by a few Langevin corrector steps at the new noise level,
+// plus a short final cooldown denoising pass to sharpen the result.
+function sampleOne(steps, corr) {
+  let x = randn() * sigmaMax2, y = randn() * sigmaMax2;
+
+  for (let i = steps; i >= 1; i--) {
+    const ti = i / steps, tim1 = (i - 1) / steps;
+    const si = sigmaOf(ti), sim1 = sigmaOf(tim1);
+
+    const r = forward(x, y, ti);
+    const varStep = si * si - sim1 * sim1;
+    x += varStep * r.ox; y += varStep * r.oy;
+    if (varStep > 0) { x += Math.sqrt(varStep) * randn(); y += Math.sqrt(varStep) * randn(); }
+
+    const stepSize = 0.16 * sim1 * sim1;
+    for (let c = 0; c < corr; c++) {
+      const rc = forward(x, y, tim1);
+      x += stepSize * rc.ox + Math.sqrt(2 * stepSize) * randn();
+      y += stepSize * rc.oy + Math.sqrt(2 * stepSize) * randn();
+    }
+  }
+
+  // Final cooldown: a few pure-drift steps at the lowest noise level to snap
+  // samples more tightly onto the manifold / training points.
+  for (let c = 0; c < 4; c++) {
+    const rc = forward(x, y, 0);
+    const ss = 0.5 * sigmaMin2 * sigmaMin2;
+    x += ss * rc.ox; y += ss * rc.oy;
+  }
+
+  return [x, y];
+}
+
+// ---- Drawing helpers (plain canvas 2D) ----
+
+function toPx(x, y, W, Hh) {
+  const dom = 2.3;
+  return [(x + dom) / (2 * dom) * (W - 60) + 30, Hh - 30 - ((y + dom) / (2 * dom) * (Hh - 60))];
+}
+
+function drawArrow(ctx, x0, y0, x1, y1, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  const ang = Math.atan2(y1 - y0, x1 - x0), ah = 4;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1); ctx.lineTo(x1 - ah * Math.cos(ang - 0.4), y1 - ah * Math.sin(ang - 0.4));
+  ctx.moveTo(x1, y1); ctx.lineTo(x1 - ah * Math.cos(ang + 0.4), y1 - ah * Math.sin(ang + 0.4));
+  ctx.stroke();
+}
+
+// Draw a 2D vector field (score field) as small arrows on a grid, with the
+// data manifold (ring) and training points overlaid for reference.
+function drawField(id, scoreFn) {
+  const cv = document.getElementById(id), ctx = cv.getContext('2d');
+  const W = 680, Hh = 320;
+  ctx.clearRect(0, 0, W, Hh);
+
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  for (let a = 0; a <= 64; a++) {
+    const th = a / 64 * 2 * Math.PI;
+    const [px, py] = toPx(Rman * Math.cos(th), Rman * Math.sin(th), W, Hh);
+    if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  const n = 14, dom = 2.1;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const x = -dom + i * (2 * dom) / (n - 1), y = -dom + j * (2 * dom) / (n - 1);
+    const [sx, sy] = scoreFn(x, y);
+    const mag = Math.sqrt(sx * sx + sy * sy);
+    const len = 10 * Math.tanh(mag / 6);
+    const ux = mag > 1e-6 ? sx / mag : 0, uy = mag > 1e-6 ? sy / mag : 0;
+    const [px0, py0] = toPx(x, y, W, Hh);
+    drawArrow(ctx, px0, py0, px0 + ux * len, py0 - uy * len, '#777');
+  }
+
+  ctx.fillStyle = '#1a56c4';
+  trainPts.forEach(p => {
+    const [px, py] = toPx(p[0], p[1], W, Hh);
+    ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill();
+  });
+}
+
+// Draw generated samples as a scatter plot over the manifold and training points.
+function drawScatter(samples) {
+  const cv = document.getElementById('scatterCanvas'), ctx = cv.getContext('2d');
+  const W = 680, Hh = 320;
+  ctx.clearRect(0, 0, W, Hh);
+
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let a = 0; a <= 64; a++) {
+    const th = a / 64 * 2 * Math.PI;
+    const [px, py] = toPx(Rman * Math.cos(th), Rman * Math.sin(th), W, Hh);
+    if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#c23b3b'; ctx.globalAlpha = 0.6;
+  samples.forEach(s => {
+    const [px, py] = toPx(s[0], s[1], W, Hh);
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fill();
+  });
+
+  ctx.globalAlpha = 1; ctx.fillStyle = '#1a56c4';
+  trainPts.forEach(p => {
+    const [px, py] = toPx(p[0], p[1], W, Hh);
+    ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill();
+  });
+}
+
+function updateWdLabel2() {
+  document.getElementById('wd-out2').textContent = wdFromSlider(+document.getElementById('wd2').value).toFixed(4);
+}
+updateWdLabel2();
+
+// Main entry point: train a fresh network at the current weight decay setting,
+// then draw the learned/true score fields and run reverse-diffusion sampling.
+// Training is chunked with setTimeout so the browser tab stays responsive.
+function trainAndSample2D() {
+  const btn = document.getElementById('trainBtn2'), status = document.getElementById('status2');
+  btn.disabled = true;
+  initNet();
+
+  const g = {
+    gW1: new Array(H1 * IN_DIM), gb1: new Array(H1),
+    gW2: new Array(H2 * H1), gb2: new Array(H2),
+    gW3x: new Array(H2), gW3y: new Array(H2)
+  };
+
+  const totalIters = 10000, chunk = 200, batch = 96;
+  let done = 0;
+
+  function runChunk() {
+    const wdNow = wdFromSlider(+document.getElementById('wd2').value);
+    for (let i = 0; i < chunk; i++) trainStep(wdNow, batch, g);
+    done += chunk;
+    status.textContent = 'Training... ' + Math.round(done / totalIters * 100) + '%';
+
+    if (done < totalIters) {
+      setTimeout(runChunk, 0);
+    } else {
+      status.textContent = 'Computing score fields...';
+      setTimeout(() => {
+        const sp = sigmaOf(0.05);
+        drawField('learnedField', (x, y) => { const r = forward(x, y, 0.05); return [r.ox, r.oy]; });
+        drawField('trueField', (x, y) => trueScore(x, y, sp));
+
+        status.textContent = 'Sampling (predictor-corrector)...';
+        setTimeout(() => {
+          const samples = [];
+          for (let i = 0; i < 300; i++) samples.push(sampleOne(90, 3));
+          drawScatter(samples);
+          status.textContent = 'Done (training steps: ' + totalIters +
+            ', effective weight decay: ' + wdFromSlider(+document.getElementById('wd2').value).toFixed(4) + ')';
+          btn.disabled = false;
+        }, 20);
+      }, 20);
+    }
+  }
+
+  runChunk();
+}
+
+// Initial (untrained) draw so the page shows something before the first click.
+initNet();
+drawField('learnedField', (x, y) => { const r = forward(x, y, 0.05); return [r.ox, r.oy]; });
+drawField('trueField', (x, y) => trueScore(x, y, sigmaOf(0.05)));
+drawScatter([]);
+</script>
+
+</body>
+</html>
