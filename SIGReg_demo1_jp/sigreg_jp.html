@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIGReg (Signature Regularization) 理解・体験デモ</title>
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --accent-green: #4ade80;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1, h2, h3 {
+            color: var(--accent);
+            margin-top: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .description {
+            background: var(--card-bg);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            background: rgba(0,0,0,0.2);
+            padding: 10px 15px;
+            border-radius: 6px;
+        }
+
+        label {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        select, input, button {
+            background: var(--bg-color);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        button {
+            background: #0284c7;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            border: none;
+        }
+
+        button:hover {
+            background: var(--accent);
+        }
+
+        button.danger {
+            background: #e11d48;
+        }
+
+        button.danger:hover {
+            background: #f43f5e;
+        }
+
+        .plot-container {
+            width: 100%;
+            height: 380px;
+        }
+
+        .stat-badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        .math-expr {
+            font-family: 'Georgia', 'Courier New', serif;
+            color: #f472b6;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>SIGReg (Signature Regularization) インタラクティブデモ</h1>
+    
+    <div class="description">
+        <strong>SIGRegの概要:</strong> JEPA等における表現の崩壊（すべての埋め込みが単一点に縮退する問題）を防ぐため、サンプル分布を標準等方ガウス分布 <b><i>N</i>(0, <i>I</i>)</b> に導く正則化です。
+        <b>Cramér–Woldの定理</b>に基づき、高次元点を1次元のランダム軸に射影し、その特性関数（Fourier変換） <span class="math-expr">φ̂(t) = (1/N) Σ e<sup>itx</sup></span> を目標値 <span class="math-expr">e<sup>-t²/2</sup></span> と比較・最適化します。
+    </div>
+
+    <!-- Section 1: 1D Characteristic Function & Test -->
+    <div class="card" style="margin-bottom: 20px;">
+        <h2>1. 1次元特性関数 (Characteristic Function) によるガウス性テスト</h2>
+        <div class="controls">
+            <label>サンプル分布パターン:
+                <select id="dist1d-type" onchange="update1D()">
+                    <option value="gaussian">標準ガウス分布 N(0,1) 【理想状態】</option>
+                    <option value="collapsed">完全崩壊 (全点が0付近に集積)</option>
+                    <option value="uniform">一様分布 [-2, 2]</option>
+                    <option value="bimodal">二重ピーク (2群に分解)</option>
+                    <option value="scaled">分散が小さいガウス分布 N(0, 0.2)</option>
+                </select>
+            </label>
+            <label>サンプル数 N:
+                <input type="number" id="sample-count-1d" value="250" min="50" max="1000" step="50" onchange="update1D()">
+            </label>
+            <span id="sigreg-score-1d" class="stat-badge">SIGReg Loss: 0.000</span>
+        </div>
+        
+        <div class="grid">
+            <div>
+                <h3>データのヒストグラム (1D)</h3>
+                <div id="plot-1d-hist" class="plot-container"></div>
+            </div>
+            <div>
+                <h3>特性関数の絶対値 |φ(t)|</h3>
+                <div id="plot-1d-cf" class="plot-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Cramér-Wold Projection & Optimization -->
+    <div class="card">
+        <h2>2. 2次元でのCramér–Wold射影 ＆ SIGRegによる崩壊回避アニメーション</h2>
+        <div class="controls">
+            <label>初期点群の状態:
+                <select id="init-shape">
+                    <option value="collapsed_point">完全崩壊 (1点に凝集)</option>
+                    <option value="line">1次元直線状に縮退</option>
+                    <option value="ring">リング状分布</option>
+                    <option value="clustered">2つのクラスタ</option>
+                </select>
+            </label>
+            <button onclick="reset2D()">初期化</button>
+            <button onclick="toggleOptimization()" id="btn-opt">最適化スタート (勾配降下)</button>
+            <label>学習率 lr:
+                <input type="number" id="lr-input" value="0.05" min="0.001" max="0.2" step="0.01">
+            </label>
+            <span id="step-count" class="stat-badge">Step: 0</span>
+            <span id="sigreg-score-2d" class="stat-badge">2D SIGReg Loss: -</span>
+        </div>
+
+        <div class="grid">
+            <div>
+                <h3>2D 埋め込み空間 Z (点群)</h3>
+                <div id="plot-2d-scatter" class="plot-container"></div>
+            </div>
+            <div>
+                <h3>ランダム単位ベクトル v への 1D 射影分布</h3>
+                <div id="plot-2d-proj" class="plot-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Utility Functions ---
+    function randn() {
+        let u = 0, v = 0;
+        while(u === 0) u = Math.random();
+        while(v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    const darkLayout = {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: '#f8fafc' },
+        xaxis: { gridcolor: '#334155', zerolinecolor: '#475569' },
+        yaxis: { gridcolor: '#334155', zerolinecolor: '#475569' },
+        margin: { t: 30, r: 20, l: 40, b: 40 }
+    };
+
+    // --- Section 1: 1D Demo ---
+    function generate1DData(type, N) {
+        let data = [];
+        for(let i = 0; i < N; i++) {
+            if (type === 'gaussian') data.push(randn());
+            else if (type === 'collapsed') data.push(randn() * 0.05);
+            else if (type === 'uniform') data.push((Math.random() - 0.5) * 4);
+            else if (type === 'bimodal') data.push(Math.random() > 0.5 ? randn()*0.5 + 2 : randn()*0.5 - 2);
+            else if (type === 'scaled') data.push(randn() * 0.4);
+        }
+        return data;
+    }
+
+    function compute1DCF(samples, tGrid) {
+        const N = samples.length;
+        const re = [], im = [], mag = [], target = [];
+        let totalLoss = 0;
+
+        for (let t of tGrid) {
+            let sumRe = 0, sumIm = 0;
+            for (let x of samples) {
+                sumRe += Math.cos(t * x);
+                sumIm += Math.sin(t * x);
+            }
+            const empRe = sumRe / N;
+            const empIm = sumIm / N;
+            const empMag = Math.sqrt(empRe * empRe + empIm * empIm);
+            
+            const tgt = Math.exp(-0.5 * t * t);
+            
+            re.push(empRe);
+            im.push(empIm);
+            mag.push(empMag);
+            target.push(tgt);
+
+            totalLoss += Math.pow(empRe - tgt, 2) + Math.pow(empIm, 2);
+        }
+
+        return { mag, target, loss: totalLoss / tGrid.length };
+    }
+
+    function update1D() {
+        const type = document.getElementById('dist1d-type').value;
+        const N = parseInt(document.getElementById('sample-count-1d').value);
+        const samples = generate1DData(type, N);
+
+        const traceHist = {
+            x: samples,
+            type: 'histogram',
+            histnorm: 'probability density',
+            marker: { color: '#38bdf8', opacity: 0.7 },
+            name: 'Sample Distribution'
+        };
+        Plotly.newPlot('plot-1d-hist', [traceHist], {
+            ...darkLayout,
+            xaxis: { ...darkLayout.xaxis, range: [-4, 4], title: 'x' },
+            yaxis: { ...darkLayout.yaxis, title: 'Density' }
+        }, {responsive: true});
+
+        const tGrid = [];
+        for (let t = -3; t <= 3; t += 0.1) tGrid.push(t);
+        const cfRes = compute1DCF(samples, tGrid);
+
+        const traceEmpCF = { x: tGrid, y: cfRes.mag, mode: 'lines', name: 'Empirical |φ_x(t)|', line: { color: '#f472b6', width: 3 } };
+        const traceTgtCF = { x: tGrid, y: cfRes.target, mode: 'lines', name: 'Target e^(-t²/2)', line: { color: '#4ade80', dash: 'dash', width: 2 } };
+
+        Plotly.newPlot('plot-1d-cf', [traceEmpCF, traceTgtCF], {
+            ...darkLayout,
+            xaxis: { ...darkLayout.xaxis, title: 't' },
+            yaxis: { ...darkLayout.yaxis, range: [0, 1.1], title: '|φ(t)|' }
+        }, {responsive: true});
+
+        document.getElementById('sigreg-score-1d').innerText = `SIGReg Loss: ${cfRes.loss.toFixed(4)}`;
+    }
+
+    // --- Section 2: 2D Optimization & Cramér-Wold ---
+    let points2D = [];
+    let isOptimizing = false;
+    let animFrameId = null;
+    let stepCount = 0;
+    const N2D = 200;
+    let projVector = [1, 0];
+
+    function generate2DShape(shape) {
+        let pts = [];
+        for (let i = 0; i < N2D; i++) {
+            if (shape === 'collapsed_point') {
+                pts.push([randn() * 0.02, randn() * 0.02]);
+            } else if (shape === 'line') {
+                let val = randn();
+                pts.push([val + randn()*0.02, val*0.5 + randn()*0.02]);
+            } else if (shape === 'ring') {
+                let theta = Math.random() * 2 * Math.PI;
+                let r = 2.0 + randn() * 0.1;
+                pts.push([r * Math.cos(theta), r * Math.sin(theta)]);
+            } else if (shape === 'clustered') {
+                let c = Math.random() > 0.5 ? 1.5 : -1.5;
+                pts.push([c + randn()*0.3, -c + randn()*0.3]);
+            }
+        }
+        return pts;
+    }
+
+    function reset2D() {
+        if (isOptimizing) toggleOptimization();
+        const shape = document.getElementById('init-shape').value;
+        points2D = generate2DShape(shape);
+        stepCount = 0;
+        
+        let angle = Math.random() * Math.PI * 2;
+        projVector = [Math.cos(angle), Math.sin(angle)];
+
+        update2DPlots();
+    }
+
+    function computeSigregAndGradients(pts, numProjections = 8) {
+        const N = pts.length;
+        const grads = Array.from({length: N}, () => [0, 0]);
+        let totalLoss = 0;
+
+        const tGrid = [-1.5, -0.8, 0.8, 1.5];
+
+        for (let p = 0; p < numProjections; p++) {
+            const angle = (p / numProjections) * Math.PI;
+            const vx = Math.cos(angle);
+            const vy = Math.sin(angle);
+
+            const proj = pts.map(pt => pt[0] * vx + pt[1] * vy);
+
+            for (let t of tGrid) {
+                const targetCF = Math.exp(-0.5 * t * t);
+                let sumCos = 0, sumSin = 0;
+                for (let x of proj) {
+                    sumCos += Math.cos(t * x);
+                    sumSin += Math.sin(t * x);
+                }
+                const empRe = sumCos / N;
+                const empIm = sumSin / N;
+
+                const diffRe = empRe - targetCF;
+                const diffIm = empIm;
+
+                totalLoss += diffRe * diffRe + diffIm * diffIm;
+
+                const factorRe = (2 / N) * diffRe;
+                const factorIm = (2 / N) * diffIm;
+
+                for (let i = 0; i < N; i++) {
+                    const x_i = proj[i];
+                    const dRe = -Math.sin(t * x_i) * t;
+                    const dIm = Math.cos(t * x_i) * t;
+
+                    const dLoss_dx_i = factorRe * dRe + factorIm * dIm;
+
+                    grads[i][0] += dLoss_dx_i * vx;
+                    grads[i][1] += dLoss_dx_i * vy;
+                }
+            }
+        }
+
+        return { loss: totalLoss / (numProjections * tGrid.length), grads };
+    }
+
+    function stepOptimization() {
+        const lr = parseFloat(document.getElementById('lr-input').value);
+        const { loss, grads } = computeSigregAndGradients(points2D);
+
+        for (let i = 0; i < points2D.length; i++) {
+            points2D[i][0] -= lr * grads[i][0];
+            points2D[i][1] -= lr * grads[i][1];
+        }
+
+        stepCount++;
+        document.getElementById('step-count').innerText = `Step: ${stepCount}`;
+        document.getElementById('sigreg-score-2d').innerText = `2D SIGReg Loss: ${loss.toFixed(4)}`;
+
+        update2DPlots();
+
+        if (isOptimizing) {
+            animFrameId = requestAnimationFrame(stepOptimization);
+        }
+    }
+
+    function toggleOptimization() {
+        isOptimizing = !isOptimizing;
+        const btn = document.getElementById('btn-opt');
+        if (isOptimizing) {
+            btn.innerText = "一時停止";
+            btn.classList.add("danger");
+            stepOptimization();
+        } else {
+            btn.innerText = "最適化スタート (勾配降下)";
+            btn.classList.remove("danger");
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+        }
+    }
+
+    function update2DPlots() {
+        const xVals = points2D.map(p => p[0]);
+        const yVals = points2D.map(p => p[1]);
+
+        const traceScatter = {
+            x: xVals,
+            y: yVals,
+            mode: 'markers',
+            marker: { color: '#38bdf8', size: 6, opacity: 0.8 }
+        };
+
+        const traceAxis = {
+            x: [-projVector[0]*4, projVector[0]*4],
+            y: [-projVector[1]*4, projVector[1]*4],
+            mode: 'lines',
+            line: { color: '#f472b6', dash: 'dot', width: 2 },
+            name: 'Proj Axis v'
+        };
+
+        Plotly.newPlot('plot-2d-scatter', [traceScatter, traceAxis], {
+            ...darkLayout,
+            xaxis: { ...darkLayout.xaxis, range: [-3.5, 3.5], title: 'z₁' },
+            yaxis: { ...darkLayout.yaxis, range: [-3.5, 3.5], title: 'z₂' },
+            showlegend: false
+        }, {responsive: true});
+
+        const projVals = points2D.map(p => p[0] * projVector[0] + p[1] * projVector[1]);
+        const traceProjHist = {
+            x: projVals,
+            type: 'histogram',
+            histnorm: 'probability density',
+            marker: { color: '#f472b6', opacity: 0.6 }
+        };
+
+        Plotly.newPlot('plot-2d-proj', [traceProjHist], {
+            ...darkLayout,
+            xaxis: { ...darkLayout.xaxis, range: [-3.5, 3.5], title: 'vᵀ z (1D Value)' },
+            yaxis: { ...darkLayout.yaxis, title: 'Density' }
+        }, {responsive: true});
+    }
+
+    window.onload = () => {
+        update1D();
+        reset2D();
+    };
+</script>
+</body>
+</html>
