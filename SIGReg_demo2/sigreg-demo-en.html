@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIGReg, Interactively</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg: #090c11;
+  --bg-panel: #11161f;
+  --bg-panel-2: #0d1219;
+  --bg-inset: #080b10;
+  --border: #202836;
+  --border-soft: #171e2a;
+  --text: #e7ecf3;
+  --text-dim: #8b96a8;
+  --text-faint: #5c6678;
+  --empirical: #35d7a0;
+  --empirical-dim: #1c6b52;
+  --target: #ff9166;
+  --target-dim: #7a4530;
+  --interactive: #7c9cff;
+  --interactive-dim: #33406b;
+  --warn: #ffd166;
+  --mono: 'IBM Plex Mono', monospace;
+  --display: 'Space Grotesk', sans-serif;
+  --body: 'Inter', sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--body);
+  line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.bg-grid{
+  position:fixed; inset:0; z-index:-1; opacity:.35;
+  background-image:
+    linear-gradient(var(--border-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 90%);
+}
+a{color:var(--interactive);}
+.wrap{max-width:1080px; margin:0 auto; padding:0 24px;}
+
+/* ---------- header ---------- */
+header.hero{padding:88px 24px 56px; position:relative;}
+.eyebrow{
+  font-family:var(--mono); font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--empirical); display:flex; align-items:center; gap:10px; margin-bottom:20px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--empirical); box-shadow:0 0 8px var(--empirical);}
+h1{
+  font-family:var(--display); font-weight:700; font-size:clamp(34px,5vw,56px);
+  line-height:1.05; margin:0 0 20px; max-width:820px; letter-spacing:-.01em;
+}
+h1 .accent{color:var(--empirical);}
+.hero p.lede{
+  font-size:17px; color:var(--text-dim); max-width:640px; margin:0 0 8px;
+}
+.hero .source{
+  font-family:var(--mono); font-size:12.5px; color:var(--text-faint); margin-top:20px;
+}
+.hero .source a{color:var(--text-dim); text-decoration:none; border-bottom:1px dashed var(--border);}
+.hero .source a:hover{color:var(--empirical); border-color:var(--empirical);}
+
+/* signature: live phase wheel in the hero */
+.hero-visual{
+  margin-top:36px; display:flex; align-items:center; gap:28px; flex-wrap:wrap;
+}
+#heroCanvas{background:var(--bg-inset); border:1px solid var(--border); border-radius:10px;}
+.hero-caption{font-family:var(--mono); font-size:12px; color:var(--text-faint); max-width:280px;}
+.hero-caption b{color:var(--text-dim); font-weight:500;}
+
+/* ---------- toc ---------- */
+nav.toc{
+  position:sticky; top:0; z-index:30; backdrop-filter:blur(10px);
+  background:rgba(9,12,17,.86); border-bottom:1px solid var(--border-soft);
+}
+nav.toc .inner{
+  max-width:1080px; margin:0 auto; padding:0 24px; display:flex; gap:4px;
+  overflow-x:auto; scrollbar-width:none;
+}
+nav.toc .inner::-webkit-scrollbar{display:none;}
+nav.toc a{
+  font-family:var(--mono); font-size:12px; color:var(--text-dim); text-decoration:none;
+  padding:14px 14px; white-space:nowrap; border-bottom:2px solid transparent;
+}
+nav.toc a span{color:var(--text-faint); margin-right:6px;}
+nav.toc a:hover{color:var(--text);}
+
+/* ---------- sections ---------- */
+section.panel{padding:76px 24px 20px; border-top:1px solid var(--border-soft);}
+section.panel:first-of-type{border-top:none;}
+.sec-head{max-width:720px; margin-bottom:34px;}
+.sec-num{font-family:var(--mono); font-size:12.5px; color:var(--empirical); letter-spacing:.1em;}
+.sec-title{font-family:var(--display); font-size:clamp(24px,3.2vw,32px); font-weight:600; margin:8px 0 14px; letter-spacing:-.01em;}
+.sec-desc{color:var(--text-dim); font-size:15.5px; max-width:680px;}
+.sec-desc code, .eq{font-family:var(--mono); color:var(--target); font-size:.92em;}
+
+.grid2{display:grid; grid-template-columns:1.1fr .9fr; gap:20px; align-items:start;}
+.grid2b{display:grid; grid-template-columns:.9fr 1.1fr; gap:20px; align-items:start;}
+@media (max-width:880px){ .grid2, .grid2b{grid-template-columns:1fr;} }
+
+.card{
+  background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:20px;
+}
+.card h4{
+  font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--text-faint); margin:0 0 14px; font-weight:500;
+}
+canvas{display:block; max-width:100%;}
+
+.controls{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;}
+.btn{
+  font-family:var(--mono); font-size:12.5px; color:var(--text); background:var(--bg-panel-2);
+  border:1px solid var(--border); padding:9px 14px; border-radius:7px; cursor:pointer;
+  transition:border-color .15s, color .15s; user-select:none;
+}
+.btn:hover{border-color:var(--interactive); color:var(--interactive);}
+.btn.active{border-color:var(--empirical); color:var(--empirical); background:rgba(53,215,160,.08);}
+.btn.primary{border-color:var(--empirical-dim); color:var(--empirical);}
+.btn.primary:hover{border-color:var(--empirical);}
+.btn.warnbtn{border-color:var(--target-dim); color:var(--target);}
+.btn.warnbtn:hover{border-color:var(--target);}
+
+.field{margin-bottom:14px;}
+.field label{
+  display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px;
+  color:var(--text-dim); margin-bottom:6px;
+}
+.field label .val{color:var(--empirical);}
+input[type=range]{
+  -webkit-appearance:none; width:100%; height:4px; border-radius:2px;
+  background:var(--border); outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+  background:var(--empirical); cursor:pointer; border:2px solid var(--bg-inset);
+  box-shadow:0 0 0 1px var(--empirical);
+}
+input[type=range]::-moz-range-thumb{
+  width:14px; height:14px; border-radius:50%; background:var(--empirical); cursor:pointer; border:2px solid var(--bg-inset);
+}
+
+.readout{
+  font-family:var(--mono); font-size:12.5px; color:var(--text-dim); display:flex; gap:18px; flex-wrap:wrap;
+  margin-top:12px; padding-top:12px; border-top:1px solid var(--border-soft);
+}
+.readout b{color:var(--text); font-weight:500;}
+.readout .em{color:var(--empirical);}
+.readout .tg{color:var(--target);}
+
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:10px;}
+.legend .sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
+
+.note{
+  font-size:13.5px; color:var(--text-dim); background:var(--bg-panel-2); border:1px solid var(--border-soft);
+  border-left:2px solid var(--interactive); border-radius:0 8px 8px 0; padding:12px 16px; margin-top:16px;
+}
+.note b{color:var(--text);}
+
+/* footer / chain diagram */
+footer{padding:80px 24px 60px; border-top:1px solid var(--border-soft); margin-top:20px;}
+.chain{
+  font-family:var(--mono); font-size:12.5px; color:var(--text-dim); max-width:620px; margin:24px 0 40px;
+  border-left:1px solid var(--border); padding-left:20px;
+}
+.chain .step{margin-bottom:18px; position:relative;}
+.chain .step::before{
+  content:''; position:absolute; left:-24px; top:5px; width:8px; height:8px; border-radius:50%;
+  background:var(--bg); border:2px solid var(--empirical);
+}
+.chain .step b{color:var(--text); display:block; font-family:var(--body); font-weight:600; font-size:13.5px; margin-bottom:2px;}
+.chain .step .via{color:var(--text-faint); font-size:11px;}
+footer .cite{font-family:var(--mono); font-size:11.5px; color:var(--text-faint); max-width:600px;}
+footer .cite a{color:var(--text-faint);}
+
+@media (max-width:600px){
+  header.hero{padding:64px 20px 40px;}
+  section.panel{padding:56px 20px 10px;}
+  .hero-visual{flex-direction:column; align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow"><span class="dot"></span>INTERACTIVE COMPANION</div>
+    <h1>SIGReg, <span class="accent">Interactively</span></h1>
+    <p class="lede">SIGReg is an anti-collapse regularizer built from three tools: characteristic functions, the Epps&ndash;Pulley test, and the Cram&eacute;r&ndash;Wold theorem. This companion lets you do more than read about it &mdash; drag the sliders, run gradient descent live, and watch each piece work.</p>
+    <div class="hero-visual">
+      <canvas id="heroCanvas" width="220" height="220"></canvas>
+      <div class="hero-caption">
+        A point on the circle is a sample value <b>z</b> mapped to angle <b>t&middot;z</b>.<br><br>
+        The <b>centroid</b> of many such points is the empirical characteristic function &phi;<sub>N</sub>(t). Play with it in full in &sect;1 below.
+      </div>
+    </div>
+    <div class="source">Source article: <a href="https://rezabyt.github.io/blogposts/sigreg-tutorial.html" target="_blank" rel="noopener">SIGReg from First Principles &mdash; Reza Bayat</a></div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="inner">
+    <a href="#s1"><span>01</span>Characteristic functions</a>
+    <a href="#s2"><span>02</span>Epps&ndash;Pulley &amp; bandwidth</a>
+    <a href="#s3"><span>03</span>Cram&eacute;r&ndash;Wold</a>
+    <a href="#s4"><span>04</span>Recovering from collapse</a>
+    <a href="#s5"><span>05</span>The big picture</a>
+  </div>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <!-- ============ SECTION 1 ============ -->
+  <section class="panel" id="s1">
+    <div class="sec-head">
+      <div class="sec-num">§1 · CHARACTERISTIC FUNCTIONS</div>
+      <div class="sec-title">Seeing a distribution&rsquo;s fingerprint</div>
+      <div class="sec-desc">
+        The characteristic function is &phi;<sub class="eq">X</sub>(t) = E[e<sup>itX</sup>]. Each sample z<sub class="eq">n</sub> maps to a point e<sup class="eq">it&middot;z_n</sup> on the unit circle; averaging those points gives the empirical characteristic function &phi;<sub class="eq">N</sub>(t). Drag t and watch a different fingerprint appear for each distribution.
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>Centroid on the unit circle</h4>
+        <canvas id="cfCircle" style="width:100%;height:300px;"></canvas>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--empirical)"></span>each sample&rsquo;s e<sup>itz&#8345;</sup></span>
+          <span><span class="sw" style="background:var(--warn)"></span>centroid = &phi;_N(t)</span>
+        </div>
+      </div>
+      <div class="card">
+        <h4>|&phi;(t)| &mdash; the fingerprint at each frequency</h4>
+        <canvas id="cfCurve" style="width:100%;height:300px;"></canvas>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--empirical)"></span>empirical |&phi;_N(t)| (current sample)</span>
+          <span><span class="sw" style="background:var(--target)"></span>theoretical value</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="controls">
+        <button class="btn active" data-preset="fair">Fair coin (0/1, 50/50)</button>
+        <button class="btn" data-preset="biased">Biased coin (p=0.7)</button>
+        <button class="btn" data-preset="gauss">Standard Gaussian N(0,1)</button>
+        <button class="btn" id="cfSweep">&#9654; Auto-sweep t</button>
+      </div>
+      <div class="field">
+        <label>Frequency parameter t <span class="val" id="cfTVal">1.00</span></label>
+        <input type="range" id="cfT" min="0" max="10" step="0.02" value="1">
+      </div>
+      <div class="readout" id="cfReadout"></div>
+    </div>
+    <div class="note">At small t, the angles cluster near 0 and the centroid sits close to 1. At large t, the angles wrap around and scatter, so the centroid drifts toward the origin. Discrete distributions (coins) keep oscillating no matter how large t gets, while the Gaussian&rsquo;s fingerprint decays smoothly to 0 &mdash; which is exactly why &sect;3 needs a weight function.</div>
+  </section>
+
+  <!-- ============ SECTION 2 ============ -->
+  <section class="panel" id="s2">
+    <div class="sec-head">
+      <div class="sec-num">§2–3 · EPPS–PULLEY & BANDWIDTH</div>
+      <div class="sec-title">Turning &ldquo;how far from Gaussian&rdquo; into one number</div>
+      <div class="sec-desc">
+        The Epps&ndash;Pulley statistic integrates the gap between the empirical CF and the target CF <span class="eq">e<sup>-t&sup2;/2</sup></span>, weighted by the Gaussian window w(t) = e<sup>-t&sup2;/2&lambda;&sup2;</sup>. A small bandwidth &lambda; only sees low moments (mean, variance); a large one sees the distribution&rsquo;s full shape. Run gradient descent on a bimodal sample and see how &lambda; changes the outcome.
+      </div>
+    </div>
+
+    <div class="grid2b">
+      <div class="card">
+        <h4>Weight w(t) and the integrated gap</h4>
+        <canvas id="epWeight" style="width:100%;height:220px;"></canvas>
+        <div class="field" style="margin-top:14px;">
+          <label>Bandwidth &lambda; <span class="val" id="lamVal">1.00</span></label>
+          <input type="range" id="lamSlider" min="0.2" max="3.5" step="0.02" value="1">
+        </div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--interactive)"></span>weight w(t)</span>
+          <span><span class="sw" style="background:var(--warn)"></span>|&phi;_N&minus;&phi;&#8320;|&sup2; &middot; w(t)</span>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Sample histogram (updates live under gradient descent)</h4>
+        <canvas id="epHist" style="width:100%;height:220px;"></canvas>
+        <div class="controls" style="margin-top:14px;">
+          <button class="btn primary" id="epRun">&#9654; Run gradient descent</button>
+          <button class="btn" id="epReset">Reset to bimodal start</button>
+        </div>
+        <div class="readout" id="epReadout"></div>
+      </div>
+    </div>
+    <div class="note">
+      With &lambda; small (e.g. 0.3), the bimodal sample already matches the Gaussian&rsquo;s mean and variance, so the test has nothing to fix and barely moves it. Around &lambda; = 1, the test catches the higher-order shape mismatch, and the valley between the two modes fills in until the histogram looks unimodal and Gaussian &mdash; a live reproduction of Figure 3.5 in the article.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3 ============ -->
+  <section class="panel" id="s3">
+    <div class="sec-head">
+      <div class="sec-num">§5 · CRAMÉR–WOLD</div>
+      <div class="sec-title">One direction alone can be misleading</div>
+      <div class="sec-desc">
+        An anisotropic 2D Gaussian with &sigma;<sub class="eq">x</sub>=2, &sigma;<sub class="eq">y</sub>=0.5 gets projected onto a unit vector u. The projected variance &mdash; and the Epps&ndash;Pulley statistic T(u) &mdash; changes with direction. The Cram&eacute;r&ndash;Wold theorem guarantees that if every direction&rsquo;s projection matches N(0,1), the underlying distribution matches N(0,I) &mdash; which is why we need to average over many directions.
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>2D point cloud and projection direction u</h4>
+        <canvas id="cwScatter" style="width:100%;height:320px;"></canvas>
+        <div class="field" style="margin-top:10px;">
+          <label>Direction angle &theta; <span class="val" id="cwAngleVal">0&deg;</span></label>
+          <input type="range" id="cwAngle" min="0" max="360" step="1" value="0">
+        </div>
+        <div class="controls">
+          <button class="btn" id="cwResample">Redraw the point cloud</button>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Histogram of the projection u&middot;z, and T(u)</h4>
+        <canvas id="cwHist" style="width:100%;height:190px;"></canvas>
+        <div class="readout" id="cwReadout"></div>
+        <div class="controls" style="margin-top:14px;">
+          <button class="btn primary" id="cwAddDir">+ Add one random direction, average over M</button>
+          <button class="btn" id="cwResetM">Reset M</button>
+        </div>
+        <canvas id="cwConverge" style="width:100%;height:150px; margin-top:8px;"></canvas>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--empirical)"></span>average over M directions (SIGReg estimate)</span>
+          <span><span class="sw" style="background:var(--target)"></span>true value (reference, M=2000)</span>
+        </div>
+      </div>
+    </div>
+    <div class="note">Dragging &theta; makes T(u) swing up and down. Certain directions (near the diagonal) let the over-wide x-axis and the too-narrow y-axis partly cancel out, so the projection looks &ldquo;Gaussian enough&rdquo; even though the joint distribution clearly isn&rsquo;t. Add directions on the right and the running average converges to the true value at a rate of 1/&radic;M.</div>
+  </section>
+
+  <!-- ============ SECTION 4 ============ -->
+  <section class="panel" id="s4">
+    <div class="sec-head">
+      <div class="sec-num">§6 · ANTI-COLLAPSE</div>
+      <div class="sec-title">Watching a collapsed embedding return to isotropic</div>
+      <div class="sec-desc">
+        Starting from a &ldquo;rank-1&rdquo; collapsed state &mdash; every point nearly on a single line &mdash; run gradient descent on SIGReg alone (averaged over M fresh random directions each step). Watch the covariance eigenvalues move from (&asymp;1, &asymp;0) to (1, 1).
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>Embedding Z (2D)</h4>
+        <canvas id="colScatter" style="width:100%;height:300px;"></canvas>
+        <div class="controls" style="margin-top:14px;">
+          <button class="btn primary" id="colRun">&#9654; Start / pause SIGReg training</button>
+          <button class="btn" id="colReset">Reinitialize to rank-1</button>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Covariance eigenvalues over training</h4>
+        <canvas id="colEig" style="width:100%;height:300px;"></canvas>
+        <div class="readout" id="colReadout"></div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--empirical)"></span>&lambda;&#8321;</span>
+          <span><span class="sw" style="background:var(--interactive)"></span>&lambda;&#8322;</span>
+          <span><span class="sw" style="background:var(--target)"></span>target value = 1</span>
+        </div>
+      </div>
+    </div>
+    <div class="note">Over the first few dozen steps, the dominant eigenvalue should overshoot well past 1 before settling, while the other eigenvalue lags behind and then rises &mdash; the same behavior as Figure 6.1 in the article. It&rsquo;s an empirical confirmation that collapse can&rsquo;t survive at SIGReg&rsquo;s minimum.</div>
+  </section>
+
+  <!-- ============ SECTION 5 / SUMMARY ============ -->
+  <section class="panel" id="s5">
+    <div class="sec-head">
+      <div class="sec-num">§8 · THE BIG PICTURE</div>
+      <div class="sec-title">Putting it all together</div>
+      <div class="sec-desc">SIGReg alternates exact mathematical equivalences (Cram&eacute;r&ndash;Wold, Fourier uniqueness) with tractable numerical approximations (Monte Carlo, trapezoidal quadrature).</div>
+    </div>
+    <div class="chain">
+      <div class="step"><b>Goal: test whether Z ~ N(0, I_D)</b><span class="via">via the Cram&eacute;r&ndash;Wold theorem (exact)</span></div>
+      <div class="step"><b>&rarr; test u&middot;Z ~ N(0,1) for every direction u</b><span class="via">via Monte Carlo, M random directions (error ~1/&radic;M)</span></div>
+      <div class="step"><b>&rarr; average the Epps&ndash;Pulley statistic over M directions</b><span class="via">via uniqueness of characteristic functions (exact)</span></div>
+      <div class="step"><b>&rarr; per direction: weighted integral of |&phi;_N(t) &minus; e^(&minus;t&sup2;/2)|&sup2;</b><span class="via">via trapezoidal quadrature, K frequency knots (error ~1/K&sup2;)</span></div>
+      <div class="step"><b>&rarr; SIGReg(Z) = weighted sum of the gaps</b><span class="via">cost per evaluation is O(MKN) &mdash; linear in M, K, and N</span></div>
+    </div>
+    <p class="sec-desc" style="max-width:680px;">In the population limit, this value can only be zero when Z is exactly the isotropic Gaussian N(0,I). Since that Gaussian&rsquo;s covariance is full rank, collapse simply cannot exist at this loss&rsquo;s minimum.</p>
+    <div class="cite">Source: Reza Bayat, &ldquo;SIGReg from First Principles: A Step-by-Step Construction of an Anti-Collapse Regularizer for JEPAs&rdquo; (2026). <a href="https://rezabyt.github.io/blogposts/sigreg-tutorial.html" target="_blank" rel="noopener">rezabyt.github.io/blogposts/sigreg-tutorial.html</a></div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cite">This demo computes the article&rsquo;s actual formulas &mdash; the Epps&ndash;Pulley statistic, trapezoidal quadrature, and Cram&eacute;r&ndash;Wold random projections &mdash; live in the browser. Implementation details like learning rate and step count are simplified for demo purposes.</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= math utils ================= */
+function randn(){ let u=1-Math.random(), v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function linspace(a,b,n){ const out=new Array(n); const step=(b-a)/(n-1); for(let i=0;i<n;i++) out[i]=a+i*step; return out; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function gaussianWeight(t,lam){ return Math.exp(-(t*t)/(2*lam*lam)); }
+function targetCF(t){ return Math.exp(-(t*t)/2); }
+
+function makeQuadrature(lam,K,tmin,tmax){
+  const tKnots = linspace(tmin,tmax,K);
+  const dt = tKnots[1]-tKnots[0];
+  const alpha = new Array(K).fill(dt);
+  alpha[0]*=0.5; alpha[K-1]*=0.5;
+  const weights = alpha.map((a,i)=>a*gaussianWeight(tKnots[i],lam));
+  return {tKnots, weights};
+}
+
+// 1D Epps-Pulley: returns {loss, C, S, G}
+function eppsPulley(samples, tKnots, weights){
+  const N=samples.length, K=tKnots.length;
+  const C=new Array(K).fill(0), S=new Array(K).fill(0);
+  for(let k=0;k<K;k++){
+    let c=0,s=0; const t=tKnots[k];
+    for(let n=0;n<N;n++){ const a=t*samples[n]; c+=Math.cos(a); s+=Math.sin(a); }
+    C[k]=c/N; S[k]=s/N;
+  }
+  const G=tKnots.map(t=>targetCF(t));
+  let loss=0;
+  for(let k=0;k<K;k++) loss += weights[k]*((C[k]-G[k])**2 + S[k]*S[k]);
+  loss *= N;
+  return {loss, C, S, G};
+}
+
+// gradient dLoss/dsamples for the 1D statistic above
+function eppsPulleyGrad(samples, tKnots, weights, C, S, G){
+  const N=samples.length, K=tKnots.length;
+  const grad=new Array(N).fill(0);
+  for(let n=0;n<N;n++){
+    let g=0;
+    for(let k=0;k<K;k++){
+      const t=tKnots[k]; const a=t*samples[n];
+      g += 2*weights[k]*t*( S[k]*Math.cos(a) - (C[k]-G[k])*Math.sin(a) );
+    }
+    grad[n]=g;
+  }
+  return grad;
+}
+
+/* ================= canvas helpers ================= */
+function fitCanvas(canvas){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(rect.width, 50), h = Math.max(rect.height, 50);
+  canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx, w, h};
+}
+
+function makeMapper(w,h, ml,mr,mt,mb, xmin,xmax,ymin,ymax){
+  const X = x => ml + (x-xmin)/(xmax-xmin) * (w-ml-mr);
+  const Y = y => (h-mb) - (y-ymin)/(ymax-ymin) * (h-mt-mb);
+  return {X,Y};
+}
+
+function drawAxes(ctx,w,h,ml,mr,mt,mb,xmin,xmax,ymin,ymax, opts){
+  opts = opts||{};
+  const {X,Y} = makeMapper(w,h,ml,mr,mt,mb,xmin,xmax,ymin,ymax);
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = '#171e2a'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.rect(ml, mt, w-ml-mr, h-mt-mb);
+  ctx.stroke();
+  if(opts.zeroLine){
+    ctx.strokeStyle='#212a38';
+    if(ymin<0 && ymax>0){ ctx.beginPath(); ctx.moveTo(ml,Y(0)); ctx.lineTo(w-mr,Y(0)); ctx.stroke(); }
+    if(xmin<0 && xmax>0){ ctx.beginPath(); ctx.moveTo(X(0),mt); ctx.lineTo(X(0),h-mb); ctx.stroke(); }
+  }
+  ctx.fillStyle = '#5c6678'; ctx.font = '10.5px "IBM Plex Mono", monospace';
+  if(opts.xticks){
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    opts.xticks.forEach(v=>{ ctx.fillText(v.toString(), X(v), h-mb+6); });
+  }
+  if(opts.yticks){
+    ctx.textAlign='right'; ctx.textBaseline='middle';
+    opts.yticks.forEach(v=>{ ctx.fillText(v.toString(), ml-8, Y(v)); });
+  }
+  return {X,Y};
+}
+
+function plotLine(ctx, X, Y, xs, ys, color, lw, dash){
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = lw||1.6;
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  for(let i=0;i<xs.length;i++){
+    const px=X(xs[i]), py=Y(ys[i]);
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function fillArea(ctx, X, Y, xs, ys, baseline, color){
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(X(xs[0]), Y(baseline));
+  for(let i=0;i<xs.length;i++) ctx.lineTo(X(xs[i]), Y(ys[i]));
+  ctx.lineTo(X(xs[xs.length-1]), Y(baseline));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function histogram(samples, bins, lo, hi){
+  const counts = new Array(bins).fill(0);
+  const w = (hi-lo)/bins;
+  samples.forEach(s=>{
+    let idx = Math.floor((s-lo)/w);
+    idx = clamp(idx,0,bins-1);
+    counts[idx]++;
+  });
+  return counts;
+}
+
+/* ================= HERO mini viz ================= */
+(function heroViz(){
+  const canvas = document.getElementById('heroCanvas');
+  let samples = [];
+  for(let i=0;i<40;i++) samples.push(randn());
+  let t = 0, dir=1;
+  function frame(){
+    const dpr = window.devicePixelRatio||1;
+    canvas.width = 220*dpr; canvas.height=220*dpr;
+    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    const w=220,h=220, cx=w/2, cy=h/2, r=78;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='#212a38'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+    let mx=0,my=0;
+    samples.forEach(z=>{
+      const ang = t*z;
+      const px = cx+r*Math.cos(ang), py = cy-r*Math.sin(ang);
+      mx += Math.cos(ang); my += Math.sin(ang);
+      ctx.fillStyle='rgba(53,215,160,0.55)';
+      ctx.beginPath(); ctx.arc(px,py,2.2,0,Math.PI*2); ctx.fill();
+    });
+    mx/=samples.length; my/=samples.length;
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+r*mx, cy-r*my); ctx.stroke();
+    ctx.fillStyle='#ffd166';
+    ctx.beginPath(); ctx.arc(cx+r*mx, cy-r*my, 3.5, 0, Math.PI*2); ctx.fill();
+    t += 0.006*dir;
+    if(t>6) dir=-1; if(t<0.1) dir=1;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ================= SECTION 1: characteristic functions ================= */
+(function section1(){
+  const circleCanvas = document.getElementById('cfCircle');
+  const curveCanvas = document.getElementById('cfCurve');
+  const tSlider = document.getElementById('cfT');
+  const tVal = document.getElementById('cfTVal');
+  const readout = document.getElementById('cfReadout');
+  const sweepBtn = document.getElementById('cfSweep');
+  const buttons = document.querySelectorAll('[data-preset]');
+
+  let preset = 'fair';
+  let samples = [];
+  let sweeping = false;
+
+  function genSamples(){
+    samples = [];
+    if(preset==='fair'){
+      for(let i=0;i<60;i++) samples.push(Math.random()<0.5?0:1);
+    } else if(preset==='biased'){
+      for(let i=0;i<60;i++) samples.push(Math.random()<0.7?1:0);
+    } else {
+      for(let i=0;i<60;i++) samples.push(randn());
+    }
+  }
+  genSamples();
+
+  function theoreticalMag(t){
+    if(preset==='fair') return Math.abs(Math.cos(t/2));
+    if(preset==='biased'){ const p=0.7; return Math.sqrt(Math.max(0,1-4*p*(1-p)*Math.sin(t/2)**2)); }
+    return Math.exp(-t*t/2);
+  }
+  function empiricalPhi(t, samps){
+    let c=0,s=0;
+    samps.forEach(z=>{ c+=Math.cos(t*z); s+=Math.sin(t*z); });
+    return {c:c/samps.length, s:s/samps.length};
+  }
+
+  function drawCircle(){
+    const {ctx,w,h} = fitCanvas(circleCanvas);
+    const cx=w/2, cy=h/2, r=Math.min(w,h)/2 - 24;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='#212a38'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-r-10,cy); ctx.lineTo(cx+r+10,cy); ctx.moveTo(cx,cy-r-10); ctx.lineTo(cx,cy+r+10); ctx.stroke();
+
+    const t = parseFloat(tSlider.value);
+    let mx=0,my=0;
+    samples.forEach(z=>{
+      const ang = t*z;
+      const px = cx+r*Math.cos(ang), py = cy-r*Math.sin(ang);
+      mx+=Math.cos(ang); my+=Math.sin(ang);
+      ctx.fillStyle='rgba(53,215,160,0.45)';
+      ctx.beginPath(); ctx.arc(px,py,2.6,0,Math.PI*2); ctx.fill();
+    });
+    mx/=samples.length; my/=samples.length;
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=2.4;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+r*mx, cy-r*my); ctx.stroke();
+    ctx.fillStyle='#ffd166';
+    ctx.beginPath(); ctx.arc(cx+r*mx, cy-r*my, 4.5, 0, Math.PI*2); ctx.fill();
+
+    const mag = Math.sqrt(mx*mx+my*my);
+    readout.innerHTML = `<span>|&phi;_N(t)| = <b class="em">${mag.toFixed(3)}</b></span><span>theoretical = <b class="tg">${theoreticalMag(t).toFixed(3)}</b></span><span>N = <b>${samples.length}</b></span>`;
+  }
+
+  function drawCurve(){
+    const {ctx,w,h} = fitCanvas(curveCanvas);
+    const {X,Y} = drawAxes(ctx,w,h, 34,14,14,26, 0,10,0,1, {xticks:[0,2,4,6,8,10], yticks:[0,0.5,1]});
+    const ts = linspace(0,10,140);
+    const empMag = ts.map(t=>{ const p=empiricalPhi(t,samples); return Math.sqrt(p.c*p.c+p.s*p.s); });
+    const theoMag = ts.map(t=>theoreticalMag(t));
+    plotLine(ctx,X,Y,ts,theoMag,'#ff9166',1.6,[4,3]);
+    plotLine(ctx,X,Y,ts,empMag,'#35d7a0',2);
+    const t = parseFloat(tSlider.value);
+    ctx.strokeStyle='#7c9cff'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(X(t),14); ctx.lineTo(X(t),h-26); ctx.stroke();
+  }
+
+  function render(){ drawCircle(); drawCurve(); }
+
+  tSlider.addEventListener('input', ()=>{ tVal.textContent = parseFloat(tSlider.value).toFixed(2); render(); });
+  buttons.forEach(b=>b.addEventListener('click', ()=>{
+    buttons.forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    preset = b.dataset.preset;
+    genSamples(); render();
+  }));
+  sweepBtn.addEventListener('click', ()=>{
+    sweeping = !sweeping;
+    sweepBtn.textContent = sweeping ? '\u25a0 Stop' : '\u25b6 Auto-sweep t';
+  });
+  let dir=1;
+  function loop(){
+    if(sweeping){
+      let t = parseFloat(tSlider.value) + 0.035*dir;
+      if(t>10){ t=10; dir=-1; } if(t<0){ t=0; dir=1; }
+      tSlider.value = t; tVal.textContent = t.toFixed(2);
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  window.addEventListener('resize', render);
+  render();
+})();
+
+/* ================= SECTION 2: Epps-Pulley + bandwidth ================= */
+(function section2(){
+  const weightCanvas = document.getElementById('epWeight');
+  const histCanvas = document.getElementById('epHist');
+  const lamSlider = document.getElementById('lamSlider');
+  const lamVal = document.getElementById('lamVal');
+  const runBtn = document.getElementById('epRun');
+  const resetBtn = document.getElementById('epReset');
+  const readout = document.getElementById('epReadout');
+
+  let samples = [];
+  let running = false;
+  let step = 0;
+
+  function initSamples(){
+    samples = [];
+    for(let i=0;i<50;i++) samples.push(-1 + 0.28*randn());
+    for(let i=0;i<50;i++) samples.push(1 + 0.28*randn());
+    step = 0;
+  }
+  initSamples();
+
+  function lam(){ return parseFloat(lamSlider.value); }
+
+  function drawWeight(){
+    const {ctx,w,h} = fitCanvas(weightCanvas);
+    const {X,Y} = drawAxes(ctx,w,h, 30,10,12,22, 0,6,0,1, {xticks:[0,1,2,3,4,5,6], yticks:[0,1]});
+    const ts = linspace(0,6,140);
+    const l = lam();
+    const wts = ts.map(t=>gaussianWeight(t,l));
+    const {C,S,G} = eppsPulley(samples, ts, ts.map(()=>1));
+    const diffsq = ts.map((t,i)=>((C[i]-G[i])**2 + S[i]*S[i]));
+    const maxDiff = Math.max(...diffsq, 1e-6);
+    const weighted = diffsq.map((d,i)=> d*wts[i] / maxDiff );
+    fillArea(ctx,X,Y,ts,weighted,0,'rgba(255,209,102,0.28)');
+    plotLine(ctx,X,Y,ts,weighted,'#ffd166',1.4);
+    plotLine(ctx,X,Y,ts,wts,'#7c9cff',2);
+  }
+
+  function drawHist(){
+    const {ctx,w,h} = fitCanvas(histCanvas);
+    const lo=-4, hi=4, bins=40;
+    const {X,Y} = drawAxes(ctx,w,h, 30,10,12,22, lo,hi,0,0.28, {xticks:[-4,-2,0,2,4]});
+    const counts = histogram(samples, bins, lo, hi);
+    const N = samples.length;
+    const binw = (hi-lo)/bins;
+    ctx.fillStyle = 'rgba(53,215,160,0.55)';
+    counts.forEach((c,i)=>{
+      const dens = c/(N*binw);
+      const x0 = X(lo+i*binw), x1 = X(lo+(i+1)*binw);
+      const y0 = Y(0), y1 = Y(Math.min(dens,0.28));
+      ctx.fillRect(x0, y1, Math.max(1,x1-x0-1), y0-y1);
+    });
+    // target gaussian density overlay
+    const xs = linspace(lo,hi,120);
+    const ys = xs.map(x => Math.exp(-x*x/2)/Math.sqrt(2*Math.PI));
+    plotLine(ctx,X,Y,xs,ys,'#ff9166',1.8,[5,3]);
+  }
+
+  function updateLoss(){
+    const {tKnots, weights} = makeQuadrature(lam(), 16, 0.2, 4.0);
+    const {loss} = eppsPulley(samples, tKnots, weights);
+    readout.innerHTML = `<span>step: <b>${step}</b></span><span>Epps&ndash;Pulley loss / N: <b class="em">${(loss/samples.length).toFixed(5)}</b></span><span>&lambda; = <b class="tg">${lam().toFixed(2)}</b></span>`;
+  }
+
+  function render(){ drawWeight(); drawHist(); updateLoss(); }
+
+  function gdStep(){
+    const {tKnots, weights} = makeQuadrature(lam(), 16, 0.2, 4.0);
+    const {C,S,G} = eppsPulley(samples, tKnots, weights);
+    const grad = eppsPulleyGrad(samples, tKnots, weights, C, S, G);
+    const lr = 0.05;
+    for(let i=0;i<samples.length;i++) samples[i] -= lr*grad[i];
+    step++;
+  }
+
+  let raf=null;
+  function loop(){
+    if(running){
+      for(let i=0;i<4;i++) gdStep();
+      render();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  lamSlider.addEventListener('input', ()=>{ lamVal.textContent = lam().toFixed(2); render(); });
+  runBtn.addEventListener('click', ()=>{
+    running = !running;
+    runBtn.textContent = running ? '\u25a0 Pause' : '\u25b6 Run gradient descent';
+  });
+  resetBtn.addEventListener('click', ()=>{ initSamples(); running=false; runBtn.textContent='\u25b6 Run gradient descent'; render(); });
+  window.addEventListener('resize', render);
+  render();
+})();
+
+/* ================= SECTION 3: Cramer-Wold ================= */
+(function section3(){
+  const scatterCanvas = document.getElementById('cwScatter');
+  const histCanvas = document.getElementById('cwHist');
+  const convCanvas = document.getElementById('cwConverge');
+  const angleSlider = document.getElementById('cwAngle');
+  const angleVal = document.getElementById('cwAngleVal');
+  const readout = document.getElementById('cwReadout');
+  const resampleBtn = document.getElementById('cwResample');
+  const addDirBtn = document.getElementById('cwAddDir');
+  const resetMBtn = document.getElementById('cwResetM');
+
+  const sx = 2, sy = 0.5;
+  let pts = [];
+  function genPts(){
+    pts = [];
+    for(let i=0;i<200;i++) pts.push([sx*randn(), sy*randn()]);
+  }
+  genPts();
+
+  const {tKnots, weights} = makeQuadrature(1.0, 16, 0.2, 4.0);
+  let trueVal = null;
+  function computeTrue(){
+    // Monte Carlo reference with many directions
+    let acc=0; const M=1500;
+    for(let m=0;m<M;m++){
+      const th = Math.random()*2*Math.PI;
+      const u=[Math.cos(th), Math.sin(th)];
+      const h = pts.map(p=>p[0]*u[0]+p[1]*u[1]);
+      acc += eppsPulley(h, tKnots, weights).loss / h.length;
+    }
+    trueVal = acc/M;
+  }
+  computeTrue();
+
+  let runningDirs = [];
+  let runningSum = 0;
+  let convHistory = [];
+
+  function angleRad(){ return parseFloat(angleSlider.value) * Math.PI/180; }
+
+  function drawScatter(){
+    const {ctx,w,h} = fitCanvas(scatterCanvas);
+    const {X,Y} = drawAxes(ctx,w,h, 14,14,14,14, -5,5,-5,5, {zeroLine:true});
+    ctx.fillStyle = 'rgba(124,156,255,0.5)';
+    pts.forEach(p=>{ ctx.beginPath(); ctx.arc(X(p[0]),Y(p[1]),2.4,0,Math.PI*2); ctx.fill(); });
+    const th = angleRad();
+    const ux=Math.cos(th), uy=Math.sin(th);
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=2.4;
+    ctx.beginPath(); ctx.moveTo(X(-4.4*ux),Y(-4.4*uy)); ctx.lineTo(X(4.4*ux),Y(4.4*uy)); ctx.stroke();
+    ctx.fillStyle='#ffd166';
+    ctx.beginPath(); ctx.arc(X(4.4*ux),Y(4.4*uy),4,0,Math.PI*2); ctx.fill();
+  }
+
+  function drawHist(){
+    const {ctx,w,h} = fitCanvas(histCanvas);
+    const th = angleRad(); const ux=Math.cos(th), uy=Math.sin(th);
+    const proj = pts.map(p=>p[0]*ux+p[1]*uy);
+    const lo=-6,hi=6,bins=32;
+    const {X,Y} = drawAxes(ctx,w,h, 30,10,10,20, lo,hi,0,0.6, {xticks:[-6,-3,0,3,6]});
+    const counts = histogram(proj, bins, lo, hi);
+    const N = proj.length, binw=(hi-lo)/bins;
+    ctx.fillStyle='rgba(255,145,102,0.55)';
+    counts.forEach((c,i)=>{
+      const dens=c/(N*binw);
+      const x0=X(lo+i*binw), x1=X(lo+(i+1)*binw);
+      const y0=Y(0), y1=Y(Math.min(dens,0.6));
+      ctx.fillRect(x0,y1,Math.max(1,x1-x0-1), y0-y1);
+    });
+    const xs=linspace(lo,hi,100);
+    const ys=xs.map(x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI));
+    plotLine(ctx,X,Y,xs,ys,'#35d7a0',1.6,[4,3]);
+
+    const {loss} = eppsPulley(proj, tKnots, weights);
+    const std = Math.sqrt(proj.reduce((a,b)=>a+b*b,0)/proj.length);
+    readout.innerHTML = `<span>T(u) = <b class="em">${(loss/proj.length).toFixed(4)}</b></span><span>projected std &asymp; <b>${std.toFixed(2)}</b></span>`;
+  }
+
+  function drawConverge(){
+    const {ctx,w,h} = fitCanvas(convCanvas);
+    const maxM = Math.max(10, convHistory.length);
+    const {X,Y} = drawAxes(ctx,w,h, 34,10,10,20, 1,Math.max(maxM,10),0,0.16, {yticks:[0,0.08,0.16]});
+    if(trueVal!==null){
+      ctx.strokeStyle='#ff9166'; ctx.lineWidth=1.4; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(X(1),Y(trueVal)); ctx.lineTo(X(Math.max(maxM,10)),Y(trueVal)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if(convHistory.length>1){
+      const xs = convHistory.map((_,i)=>i+1);
+      plotLine(ctx,X,Y,xs,convHistory,'#35d7a0',2);
+    }
+  }
+
+  function render(){ drawScatter(); drawHist(); drawConverge(); }
+
+  angleSlider.addEventListener('input', ()=>{ angleVal.textContent = angleSlider.value+'\u00b0'; render(); });
+  resampleBtn.addEventListener('click', ()=>{ genPts(); computeTrue(); runningDirs=[]; runningSum=0; convHistory=[]; render(); });
+  addDirBtn.addEventListener('click', ()=>{
+    const th = Math.random()*2*Math.PI;
+    const u=[Math.cos(th),Math.sin(th)];
+    const h = pts.map(p=>p[0]*u[0]+p[1]*u[1]);
+    const {loss} = eppsPulley(h, tKnots, weights);
+    runningSum += loss/h.length;
+    runningDirs.push(u);
+    convHistory.push(runningSum/runningDirs.length);
+    render();
+  });
+  resetMBtn.addEventListener('click', ()=>{ runningDirs=[]; runningSum=0; convHistory=[]; render(); });
+  window.addEventListener('resize', render);
+  render();
+})();
+
+/* ================= SECTION 4: collapse -> isotropic ================= */
+(function section4(){
+  const scatterCanvas = document.getElementById('colScatter');
+  const eigCanvas = document.getElementById('colEig');
+  const runBtn = document.getElementById('colRun');
+  const resetBtn = document.getElementById('colReset');
+  const readout = document.getElementById('colReadout');
+
+  const N = 140;
+  let Z = [];
+  let eigHistory = [];
+  let running = false;
+  let step = 0;
+
+  function initRank1(){
+    Z = [];
+    for(let i=0;i<N;i++){
+      const a = randn();
+      Z.push([a, 0.02*randn()]);
+    }
+    eigHistory = [];
+    step = 0;
+  }
+  initRank1();
+
+  const {tKnots, weights} = makeQuadrature(1.0, 12, 0.2, 4.0);
+  const M = 24;
+
+  function eigenvalues(){
+    let mx=0,my=0;
+    Z.forEach(p=>{ mx+=p[0]; my+=p[1]; });
+    mx/=Z.length; my/=Z.length;
+    let a=0,b=0,c=0;
+    Z.forEach(p=>{
+      const dx=p[0]-mx, dy=p[1]-my;
+      a+=dx*dx; b+=dx*dy; c+=dy*dy;
+    });
+    a/=Z.length; b/=Z.length; c/=Z.length;
+    const tr=(a+c)/2, diff=Math.sqrt(((a-c)/2)**2 + b*b);
+    return [tr+diff, tr-diff];
+  }
+
+  function sigregStep(lr){
+    const grad = Z.map(()=>[0,0]);
+    let totalLoss = 0;
+    for(let m=0;m<M;m++){
+      const th = Math.random()*2*Math.PI;
+      const ux=Math.cos(th), uy=Math.sin(th);
+      const h = Z.map(p=>p[0]*ux+p[1]*uy);
+      const {C,S,G,loss} = eppsPulley(h, tKnots, weights);
+      totalLoss += loss/h.length;
+      const g = eppsPulleyGrad(h, tKnots, weights, C, S, G);
+      for(let n=0;n<h.length;n++){
+        grad[n][0] += g[n]*ux/M;
+        grad[n][1] += g[n]*uy/M;
+      }
+    }
+    for(let n=0;n<Z.length;n++){
+      Z[n][0] -= lr*grad[n][0];
+      Z[n][1] -= lr*grad[n][1];
+    }
+    return totalLoss/M;
+  }
+
+  function drawScatter(){
+    const {ctx,w,h} = fitCanvas(scatterCanvas);
+    const {X,Y} = drawAxes(ctx,w,h, 14,14,14,14, -3.5,3.5,-3.5,3.5, {zeroLine:true});
+    ctx.fillStyle='rgba(53,215,160,0.55)';
+    Z.forEach(p=>{ ctx.beginPath(); ctx.arc(X(p[0]),Y(p[1]),2.6,0,Math.PI*2); ctx.fill(); });
+  }
+
+  function drawEig(){
+    const {ctx,w,h} = fitCanvas(eigCanvas);
+    const maxStep = Math.max(50, eigHistory.length);
+    const {X,Y} = drawAxes(ctx,w,h, 32,10,12,22, 0,maxStep,0,2.2, {yticks:[0,1,2]});
+    ctx.strokeStyle='#ff9166'; ctx.lineWidth=1.2; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(X(0),Y(1)); ctx.lineTo(X(maxStep),Y(1)); ctx.stroke();
+    ctx.setLineDash([]);
+    if(eigHistory.length>1){
+      const xs = eigHistory.map((_,i)=>i);
+      plotLine(ctx,X,Y,xs,eigHistory.map(e=>e[0]),'#35d7a0',2);
+      plotLine(ctx,X,Y,xs,eigHistory.map(e=>e[1]),'#7c9cff',2);
+    }
+  }
+
+  function render(){
+    drawScatter(); drawEig();
+    const eig = eigHistory.length ? eigHistory[eigHistory.length-1] : eigenvalues();
+    readout.innerHTML = `<span>step: <b>${step}</b></span><span>&lambda;&#8321; = <b class="em">${eig[0].toFixed(3)}</b></span><span>&lambda;&#8322; = <b style="color:var(--interactive)">${eig[1].toFixed(3)}</b></span>`;
+  }
+
+  function loop(){
+    if(running){
+      for(let i=0;i<2;i++){
+        sigregStep(0.04);
+        step++;
+        eigHistory.push(eigenvalues());
+        if(eigHistory.length>600) eigHistory.shift();
+      }
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  runBtn.addEventListener('click', ()=>{
+    running = !running;
+    runBtn.textContent = running ? '\u25a0 Pause' : '\u25b6 Start / pause SIGReg training';
+  });
+  resetBtn.addEventListener('click', ()=>{ initRank1(); running=false; runBtn.textContent='\u25b6 Start / pause SIGReg training'; render(); });
+  window.addEventListener('resize', render);
+  render();
+})();
+
+})();
+</script>
+</body>
+</html>
