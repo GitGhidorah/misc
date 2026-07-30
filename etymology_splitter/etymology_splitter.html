@@ -220,6 +220,23 @@
     font-size:12px;
     color:var(--ink-soft);
   }
+  .meaning-group{
+    padding-top:8px;
+    margin-top:8px;
+    border-top:1px dashed var(--hairline);
+  }
+  .meaning-group:first-child{
+    padding-top:0;
+    margin-top:0;
+    border-top:none;
+  }
+  .meaning-idx{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.05em;
+    color:var(--ink-soft);
+    margin-bottom:3px;
+  }
 
   .note{
     margin-top:40px;
@@ -266,6 +283,7 @@
     <span class="ex-chip" data-w="biology">biology</span>
     <span class="ex-chip" data-w="transport">transport</span>
     <span class="ex-chip" data-w="microscope">microscope</span>
+    <span class="ex-chip" data-w="incident">incident</span>
   </div>
 
   <div id="result">
@@ -368,7 +386,8 @@ const ROOTS_RAW = [
   [["ced","ceed","cess"],"行く、進む","ラテン語"],
   [["chrom"],"色","ギリシャ語"],
   [["chron"],"時間","ギリシャ語"],
-  [["cid","cis"],"切る、殺す","ラテン語"],
+  [["cid","cis"],"切る、殺す","ラテン語（caedere）"],
+  [["cid","cas","cad"],"落ちる、生じる","ラテン語（cadere）"],
   [["circ"],"輪、円","ラテン語"],
   [["clam","claim"],"叫ぶ","ラテン語"],
   [["clud","clus","clos"],"閉じる","ラテン語"],
@@ -578,10 +597,10 @@ function stripPrefixes(word){
     for(let len=maxLen; len>=1; len--){
       const cand = rest.slice(0,len);
       const m = findMatches(cand, PREFIX_ENTRIES);
-      if(m.length){ found = {text:cand, entry:m[0], len}; break; }
+      if(m.length){ found = {text:cand, entries:m, len}; break; }
     }
     if(!found) break;
-    pieces.push({text:found.text, ...found.entry});
+    pieces.push(found);
     rest = rest.slice(found.len);
   }
   return {prefixPieces:pieces, rest};
@@ -598,10 +617,10 @@ function stripSuffixes(word){
     for(let len=maxLen; len>=1; len--){
       const cand = rest.slice(rest.length-len);
       const m = findMatches(cand, SUFFIX_ENTRIES);
-      if(m.length){ found = {text:cand, entry:m[0], len}; break; }
+      if(m.length){ found = {text:cand, entries:m, len}; break; }
     }
     if(!found) break;
-    pieces.unshift({text:found.text, ...found.entry});
+    pieces.unshift(found);
     rest = rest.slice(0, rest.length-found.len);
   }
   return {suffixPieces:pieces, rest};
@@ -625,7 +644,7 @@ function segmentMiddle(str){
       if(matches.length){
         const cost = dp[i].cost + 1 - len*0.02;
         if(!dp[j] || cost < dp[j].cost){
-          dp[j] = {cost, prev:i, piece:sub, entry:matches[0], connector:false};
+          dp[j] = {cost, prev:i, piece:sub, entries:matches, connector:false};
         }
       }
     }
@@ -634,7 +653,7 @@ function segmentMiddle(str){
       const j = i+1;
       const cost = dp[i].cost + 0.3;
       if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {cost, prev:i, piece:str[i], entry:null, connector:true};
+        dp[j] = {cost, prev:i, piece:str[i], entries:null, connector:true};
       }
     }
     // 不明な1文字（辞書に一致しない場合の最終手段、コスト高）
@@ -642,7 +661,7 @@ function segmentMiddle(str){
       const j = i+1;
       const cost = dp[i].cost + 40;
       if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {dp:true, cost, prev:i, piece:str[i], entry:null, connector:false, unknown:true};
+        dp[j] = {dp:true, cost, prev:i, piece:str[i], entries:null, connector:false, unknown:true};
       }
     }
   }
@@ -660,15 +679,15 @@ function segmentMiddle(str){
   const merged = [];
   for(const node of seq){
     const last = merged[merged.length-1];
-    const isUnknown = !node.entry && !node.connector;
+    const isUnknown = !node.entries && !node.connector;
     const isConnector = node.connector;
     if(last && ((last.kind==='unknown' && isUnknown) || (last.kind==='connector' && isConnector))){
       last.piece += node.piece;
     } else {
       merged.push({
         piece: node.piece,
-        entry: node.entry,
-        kind: isConnector ? 'connector' : (isUnknown ? 'unknown' : node.entry.type)
+        entries: node.entries,
+        kind: isConnector ? 'connector' : (isUnknown ? 'unknown' : node.entries[0].type)
       });
     }
   }
@@ -690,16 +709,16 @@ function decompose(rawWord){
     // まず中間部分全体が1つの既知語根と一致するか試す
     const direct = findMatches(middle, ROOT_ENTRIES);
     if(direct.length){
-      middlePieces = [{piece:middle, entry:direct[0], kind:'root'}];
+      middlePieces = [{piece:middle, entries:direct, kind:'root'}];
     } else {
       middlePieces = segmentMiddle(middle);
     }
   }
 
   const result = [
-    ...prefixPieces.map(p=>({piece:p.text, entry:p, kind:'prefix'})),
+    ...prefixPieces.map(p=>({piece:p.text, entries:p.entries, kind:'prefix'})),
     ...middlePieces,
-    ...suffixPieces.map(p=>({piece:p.text, entry:p, kind:'suffix'}))
+    ...suffixPieces.map(p=>({piece:p.text, entries:p.entries, kind:'suffix'}))
   ];
   return result;
 }
@@ -762,11 +781,17 @@ function render(word){
         <div class="origin">—</div>
       </div>`;
     } else {
-      const e = p.entry;
+      const entries = p.entries;
+      const multi = entries.length>1;
+      const meaningsHtml = entries.map((e,i)=>`
+        <div class="meaning-group">
+          ${multi?`<div class="meaning-idx">語源${i+1}</div>`:''}
+          <div class="meaning">${escapeHtml(e.meaning)}</div>
+          <div class="origin">${escapeHtml(e.origin)}</div>
+        </div>`).join('');
       cardsHtml += `<div class="card ${kind}">
         <div class="frag">${escapeHtml(p.piece)}<span class="type-badge">${typeLabels[kind]}</span></div>
-        <div class="meaning">${escapeHtml(e.meaning)}</div>
-        <div class="origin">${escapeHtml(e.origin)}</div>
+        ${meaningsHtml}
       </div>`;
     }
   });
