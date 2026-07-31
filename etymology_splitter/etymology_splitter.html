@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.1 — Etymology Splitter</title>
+<title>語源分解ツール ver1.2 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -265,7 +265,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.1</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.2</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -398,6 +398,7 @@ const ROOTS_RAW = [
   [["cur","curr","curs"],"走る","ラテン語"],
   [["dem"],"民衆","ギリシャ語"],
   [["dent","dont"],"歯","ラテン語/ギリシャ語"],
+  [["greg"],"群れ","ラテン語（grex/gregis）"],
   [["derm"],"皮膚","ギリシャ語"],
   [["dic","dict"],"言う","ラテン語"],
   [["doc","doct"],"教える","ラテン語"],
@@ -568,7 +569,8 @@ const SUFFIX_ENTRIES = buildEntries(SUFFIXES_RAW,'suffix');
 const ALL_ENTRIES = [...PREFIX_ENTRIES, ...ROOT_ENTRIES, ...SUFFIX_ENTRIES];
 
 /* ---------- マッチングヘルパー ---------- */
-function candidatesFor(sub){
+function candidatesFor(sub, strict){
+  if(strict) return [sub];
   const set = new Set([sub]);
   set.add(sub+'e');                  // 黙字のeが落ちたケース (e.g. "clos" -> "close")
   if(sub.length>2 && sub[sub.length-1]===sub[sub.length-2]){
@@ -576,8 +578,8 @@ function candidatesFor(sub){
   }
   return [...set];
 }
-function findMatches(sub, list){
-  for(const cand of candidatesFor(sub)){
+function findMatches(sub, list, strict){
+  for(const cand of candidatesFor(sub, strict)){
     const m = list.filter(e=>e.forms.includes(cand));
     if(m.length) return m;
   }
@@ -596,7 +598,7 @@ function stripPrefixes(word){
     const maxLen = Math.min(8, rest.length-2);
     for(let len=maxLen; len>=1; len--){
       const cand = rest.slice(0,len);
-      const m = findMatches(cand, PREFIX_ENTRIES);
+      const m = findMatches(cand, PREFIX_ENTRIES, true);
       if(m.length){ found = {text:cand, entries:m, len}; break; }
     }
     if(!found) break;
