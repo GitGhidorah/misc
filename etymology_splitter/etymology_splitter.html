@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.2 — Etymology Splitter</title>
+<title>語源分解ツール ver1.3 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -265,7 +265,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.2</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.3</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -651,7 +651,7 @@ function segmentMiddle(str){
       }
     }
     // 連結母音（連結インターフィックス）1文字: bio-o-logy のようなケース
-    if(str[i]==='o' || str[i]==='i'){
+    if(str[i]==='o' || str[i]==='i' || str[i]==='u'){
       const j = i+1;
       const cost = dp[i].cost + 0.3;
       if(!dp[j] || cost < dp[j].cost){
