@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.3 — Etymology Splitter</title>
+<title>語源分解ツール ver1.5 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -265,7 +265,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.3</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.5</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -340,6 +340,7 @@ const PREFIXES_RAW = [
   [["mis"],"誤り、悪く","ゲルマン語"],
   [["mono"],"単一の、1つの","ギリシャ語"],
   [["multi"],"多数の","ラテン語"],
+  [["neg","nec"],"否定、〜でない","ラテン語"],
   [["neo"],"新しい","ギリシャ語"],
   [["non"],"〜でない、否定","ラテン語"],
   [["ob","oc","of","op"],"〜に向かって、〜に対して","ラテン語"],
@@ -354,6 +355,7 @@ const PREFIXES_RAW = [
   [["pro"],"前へ、〜のために","ラテン語/ギリシャ語"],
   [["pseudo"],"偽の","ギリシャ語"],
   [["re"],"再び、戻って","ラテン語"],
+  [["se"],"離れて、別に","ラテン語"],
   [["retro"],"後ろへ","ラテン語"],
   [["semi"],"半分の","ラテン語"],
   [["sub","suc","suf","sug","sum","sup","sur","sus"],"下に、〜の下で","ラテン語"],
@@ -399,6 +401,22 @@ const ROOTS_RAW = [
   [["dem"],"民衆","ギリシャ語"],
   [["dent","dont"],"歯","ラテン語/ギリシャ語"],
   [["greg"],"群れ","ラテン語（grex/gregis）"],
+  [["tutor"],"教える人、後見人","ラテン語（tueri「見守る」より）"],
+  [["fabric"],"作ること、技巧","ラテン語（faber「職人」より）"],
+  [["ject"],"投げる","ラテン語（jacere）"],
+  [["tect"],"覆う","ラテン語（tegere）"],
+  [["vect","veh"],"運ぶ","ラテン語（vehere）"],
+  [["popul"],"民衆、人々","ラテン語（populus）"],
+  [["lig","liga"],"結びつける","ラテン語（ligare）"],
+  [["fort"],"強い","ラテン語（fortis）"],
+  [["fort"],"運、幸運","ラテン語（fortuna）"],
+  [["san"],"健全な、健康な","ラテン語（sanus）"],
+  [["narr"],"語る、告げる","ラテン語（narrare）"],
+  [["mens","mensur"],"測る","ラテン語（metiri）"],
+  [["alter"],"他の、変える","ラテン語（alter）"],
+  [["dit","dat"],"与える","ラテン語（dare）"],
+  [["habit","hibit"],"持つ、保つ","ラテン語（habere）"],
+  [["punct","pung"],"刺す、点","ラテン語（pungere）"],
   [["derm"],"皮膚","ギリシャ語"],
   [["dic","dict"],"言う","ラテン語"],
   [["doc","doct"],"教える","ラテン語"],
@@ -425,7 +443,7 @@ const ROOTS_RAW = [
   [["jud","jur","jus"],"法、正義","ラテン語"],
   [["junct","join","jug"],"つなぐ、結びつける","ラテン語"],
   [["labor"],"働く","ラテン語"],
-  [["leg","lect"],"読む、選ぶ、集める","ラテン語"],
+  [["leg","lect","lig"],"読む、選ぶ、集める","ラテン語"],
   [["liber"],"自由","ラテン語"],
   [["liter"],"文字","ラテン語"],
   [["log","logu"],"言葉、学問","ギリシャ語"],
@@ -441,6 +459,7 @@ const ROOTS_RAW = [
   [["migra"],"移動する","ラテン語"],
   [["min"],"小さい","ラテン語"],
   [["mit","miss"],"送る","ラテン語"],
+  [["mir"],"驚く、見つめる","ラテン語（mirari）"],
   [["mob","mot","mov"],"動く","ラテン語"],
   [["mort"],"死","ラテン語"],
   [["nat"],"生まれる","ラテン語"],
@@ -471,7 +490,7 @@ const ROOTS_RAW = [
   [["psych"],"心、精神","ギリシャ語"],
   [["pyr"],"火","ギリシャ語"],
   [["quer","quest","quir"],"尋ねる、求める","ラテン語"],
-  [["reg","rect"],"まっすぐ、支配する","ラテン語"],
+  [["reg","rect","regul"],"まっすぐ、支配する","ラテン語"],
   [["rupt"],"壊す","ラテン語"],
   [["sci"],"知る","ラテン語"],
   [["scop"],"見る、観察する","ギリシャ語"],
@@ -482,7 +501,7 @@ const ROOTS_RAW = [
   [["sol"],"太陽、単独","ラテン語"],
   [["solv","solu"],"解く、溶かす","ラテン語"],
   [["soph"],"知恵","ギリシャ語"],
-  [["spect","spec"],"見る","ラテン語"],
+  [["spect","spec","spic"],"見る","ラテン語"],
   [["spher"],"球","ギリシャ語"],
   [["spir"],"息をする","ラテン語"],
   [["stat","sist"],"立つ","ラテン語"],
@@ -513,7 +532,9 @@ const ROOTS_RAW = [
 const SUFFIXES_RAW = [
   [["able","ible"],"〜できる（形容詞化）","ラテン語"],
   [["age"],"行為・状態（名詞化）","ラテン語/フランス語"],
-  [["al"],"〜に関する（形容詞化）","ラテン語"],
+  [["al","ial"],"〜に関する（形容詞化）","ラテン語"],
+  [["acle","cle"],"〜するもの・道具（小さいものを表す）","ラテン語（-culum）"],
+  [["ar"],"〜に関する（形容詞化）","ラテン語"],
   [["an","ian"],"〜の人、〜に属する","ラテン語"],
   [["ance","ence"],"状態・性質（名詞化）","ラテン語"],
   [["ant","ent"],"〜する人、〜の性質を持つ","ラテン語"],
@@ -541,7 +562,7 @@ const SUFFIXES_RAW = [
   [["ism"],"主義・状態","ギリシャ語"],
   [["ist"],"〜する人、〜主義者","ギリシャ語"],
   [["ity","ty"],"状態・性質（名詞化）","ラテン語"],
-  [["ive"],"〜の性質を持つ","ラテン語"],
+  [["ive","ative"],"〜の性質を持つ","ラテン語"],
   [["ize","ise"],"〜にする、〜化する","ギリシャ語"],
   [["less"],"〜がない","ゲルマン語"],
   [["let"],"小さい","フランス語"],
@@ -586,76 +607,55 @@ function findMatches(sub, list, strict){
   return [];
 }
 
-/* ---------- 接頭辞・接尾辞の貪欲な切り出し ---------- */
-function stripPrefixes(word){
-  const pieces = [];
-  let rest = word;
-  let guard = 0;
-  while(guard++ < 4 && rest.length > 2){
-    // 残りがすでに既知の語根そのものと一致するなら、それ以上は削らない
-    if(pieces.length>0 && findMatches(rest, ROOT_ENTRIES).length) break;
-    let found = null;
-    const maxLen = Math.min(8, rest.length-2);
-    for(let len=maxLen; len>=1; len--){
-      const cand = rest.slice(0,len);
-      const m = findMatches(cand, PREFIX_ENTRIES, true);
-      if(m.length){ found = {text:cand, entries:m, len}; break; }
-    }
-    if(!found) break;
-    pieces.push(found);
-    rest = rest.slice(found.len);
-  }
-  return {prefixPieces:pieces, rest};
-}
-function stripSuffixes(word){
-  const pieces = [];
-  let rest = word;
-  let guard = 0;
-  while(guard++ < 4 && rest.length > 2){
-    // 残りがすでに既知の語根そのものと一致するなら、それ以上は削らない
-    if(pieces.length>0 && findMatches(rest, ROOT_ENTRIES).length) break;
-    let found = null;
-    const maxLen = Math.min(8, rest.length-2);
-    for(let len=maxLen; len>=1; len--){
-      const cand = rest.slice(rest.length-len);
-      const m = findMatches(cand, SUFFIX_ENTRIES);
-      if(m.length){ found = {text:cand, entries:m, len}; break; }
-    }
-    if(!found) break;
-    pieces.unshift(found);
-    rest = rest.slice(0, rest.length-found.len);
-  }
-  return {suffixPieces:pieces, rest};
-}
-
-/* ---------- 中間部分の一般DP分割 ---------- */
-function segmentMiddle(str){
-  const n = str.length;
+/* ---------- 単語全体を一括で最適分割するDP ----------
+   以前は「接頭辞を貪欲に剥がす → 接尾辞を貪欲に剥がす → 残った真ん中だけ
+   DPで分割する」という3段階の処理だった。この方式だと、たとえば
+   "addiction" で "di" が（本来は語根 "dict" の一部なのに）先に接頭辞
+   として食われてしまい、後戻りできず "ct" が迷子になる、という構造的な
+   誤りが起きていた（各段階が局所的にしか判断できないため）。
+   ここでは単語全体を1回のDPで見て、「候補となる全ての切れ目」の中から
+   合計コストが最小になる分割を選ぶ。これにより "ad-di-(不明)-ion" より
+   "ad-dict-ion" の方が（既知の断片が多く合計コストが低いため）自然に
+   優先されるようになる。 */
+function decomposeWord(word){
+  const n = word.length;
   if(n===0) return [];
   const dp = new Array(n+1).fill(null);
-  dp[0] = {cost:0, prev:-1, piece:null};
+  dp[0] = {cost:0, prev:-1, piece:null, entries:null, kind:null, prefixOk:true};
 
   for(let i=0;i<n;i++){
     if(!dp[i]) continue;
-    // 既知の語根・接頭辞・接尾辞を試す（複合語や連結接辞に対応）
-    const maxLen = Math.min(9, n-i);
+    const maxLen = Math.min(8, n-i);
     for(let len=maxLen; len>=1; len--){
       const j = i+len;
-      const sub = str.slice(i,j);
-      const matches = findMatches(sub, ALL_ENTRIES);
-      if(matches.length){
-        const cost = dp[i].cost + 1 - len*0.02;
-        if(!dp[j] || cost < dp[j].cost){
-          dp[j] = {cost, prev:i, piece:sub, entries:matches, connector:false};
+      const sub = word.slice(i,j);
+      const cost = dp[i].cost + 1 - len*0.02;
+
+      // 接頭辞は「まだ接頭辞しか出ていない先頭からの連続部分」でのみ許可する。
+      // そうしないと、"al"（"-al"接尾辞であると同時に ad- の同化形でもある）
+      // のような綴りが、単語の末尾にあっても接頭辞として誤って選ばれてしまう。
+      if(dp[i].prefixOk){
+        const pMatches = findMatches(sub, PREFIX_ENTRIES, true);
+        if(pMatches.length && (!dp[j] || cost < dp[j].cost)){
+          dp[j] = {cost, prev:i, piece:sub, entries:pMatches, kind:'prefix', prefixOk:true};
         }
+      }
+      // 語根・接尾辞は綴りの揺れ（黙字のe、子音重複）をある程度許容する
+      const rMatches = findMatches(sub, ROOT_ENTRIES);
+      if(rMatches.length && (!dp[j] || cost < dp[j].cost)){
+        dp[j] = {cost, prev:i, piece:sub, entries:rMatches, kind:'root', prefixOk:false};
+      }
+      const sMatches = findMatches(sub, SUFFIX_ENTRIES);
+      if(sMatches.length && (!dp[j] || cost < dp[j].cost)){
+        dp[j] = {cost, prev:i, piece:sub, entries:sMatches, kind:'suffix', prefixOk:false};
       }
     }
     // 連結母音（連結インターフィックス）1文字: bio-o-logy のようなケース
-    if(str[i]==='o' || str[i]==='i' || str[i]==='u'){
+    if(word[i]==='o' || word[i]==='i' || word[i]==='u'){
       const j = i+1;
       const cost = dp[i].cost + 0.3;
       if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {cost, prev:i, piece:str[i], entries:null, connector:true};
+        dp[j] = {cost, prev:i, piece:word[i], entries:null, kind:'connector', prefixOk:false};
       }
     }
     // 不明な1文字（辞書に一致しない場合の最終手段、コスト高）
@@ -663,7 +663,7 @@ function segmentMiddle(str){
       const j = i+1;
       const cost = dp[i].cost + 40;
       if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {dp:true, cost, prev:i, piece:str[i], entries:null, connector:false, unknown:true};
+        dp[j] = {cost, prev:i, piece:word[i], entries:null, kind:'unknown', prefixOk:false};
       }
     }
   }
@@ -681,16 +681,10 @@ function segmentMiddle(str){
   const merged = [];
   for(const node of seq){
     const last = merged[merged.length-1];
-    const isUnknown = !node.entries && !node.connector;
-    const isConnector = node.connector;
-    if(last && ((last.kind==='unknown' && isUnknown) || (last.kind==='connector' && isConnector))){
+    if(last && last.kind===node.kind && (node.kind==='unknown' || node.kind==='connector')){
       last.piece += node.piece;
     } else {
-      merged.push({
-        piece: node.piece,
-        entries: node.entries,
-        kind: isConnector ? 'connector' : (isUnknown ? 'unknown' : node.entries[0].type)
-      });
+      merged.push({piece:node.piece, entries:node.entries, kind:node.kind});
     }
   }
   return merged;
@@ -700,29 +694,7 @@ function segmentMiddle(str){
 function decompose(rawWord){
   const word = rawWord.toLowerCase().replace(/[^a-z]/g,'');
   if(!word) return null;
-
-  const {prefixPieces, rest:afterPrefix} = stripPrefixes(word);
-  const {suffixPieces, rest:middle} = stripSuffixes(afterPrefix);
-
-  let middlePieces = [];
-  if(middle.length===0){
-    // 接頭辞・接尾辞だけで単語全体が構成された場合
-  } else {
-    // まず中間部分全体が1つの既知語根と一致するか試す
-    const direct = findMatches(middle, ROOT_ENTRIES);
-    if(direct.length){
-      middlePieces = [{piece:middle, entries:direct, kind:'root'}];
-    } else {
-      middlePieces = segmentMiddle(middle);
-    }
-  }
-
-  const result = [
-    ...prefixPieces.map(p=>({piece:p.text, entries:p.entries, kind:'prefix'})),
-    ...middlePieces,
-    ...suffixPieces.map(p=>({piece:p.text, entries:p.entries, kind:'suffix'}))
-  ];
-  return result;
+  return decomposeWord(word);
 }
 
 /* ---------- 描画 ---------- */
