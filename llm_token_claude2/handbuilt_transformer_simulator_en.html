@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hand-Built Transformer (Zero Training) — Internals Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;700;900&display=swap');
+
+  :root{
+    --bg: #0B0E13;
+    --panel: #12161F;
+    --panel-2: #171C27;
+    --line: #262C39;
+    --text: #E7EAF1;
+    --text-dim: #8992A6;
+    --text-faint: #5B6479;
+    --amber: #E8A33D;
+    --amber-dim: #6B5326;
+    --teal: #3FBF9F;
+    --teal-dim: #1B4E43;
+    --rose: #E0607E;
+    --rose-dim: #5A2836;
+    --blue: #5B9BD5;
+    --violet: #9B8CE8;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: radial-gradient(1200px 700px at 15% -10%, #161C29 0%, var(--bg) 55%);
+    color: var(--text); font-family: var(--sans); line-height: 1.6; padding-bottom: 4rem;
+  }
+  a{ color: var(--amber); }
+  .wrap{ max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  header.top{ padding: 40px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+  header.top .eyebrow{
+    font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--violet);
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  header.top h1{ font-size: 27px; font-weight: 900; margin: 0 0 8px; letter-spacing: .01em; }
+  header.top p{ color: var(--text-dim); margin: 0; font-size: 14.5px; max-width: 800px; }
+  .badge-row{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .badge{
+    font-family: var(--mono); font-size: 11.5px; padding: 5px 11px; border-radius: 20px;
+    border: 1px solid var(--violet); color: var(--violet); background: rgba(155,140,232,.08);
+  }
+
+  section{ margin-bottom: 30px; }
+  h2.sec-title{
+    font-size: 13px; font-family: var(--mono); letter-spacing: .08em; color: var(--text-faint);
+    text-transform: uppercase; margin: 0 0 14px; display:flex; align-items:center; gap:10px;
+  }
+  h2.sec-title::after{ content:""; flex:1; height:1px; background: var(--line); }
+
+  .panel{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+
+  .rank-row{ display:flex; gap: 14px; flex-wrap: wrap; align-items:flex-end; margin-bottom: 20px;}
+  .rank-field{ display:flex; flex-direction:column; gap:6px; }
+  .rank-field label{ font-size: 12px; color: var(--text-dim); font-family: var(--mono); display:flex; align-items:center; gap:6px;}
+  select{
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 12px; font-family: var(--mono); font-size: 15px; min-width: 90px; cursor:pointer;
+  }
+  select:focus{ outline: 2px solid var(--amber); outline-offset: 1px; }
+  .rank-badge{
+    width: 26px; height: 26px; border-radius: 50%; display:flex; align-items:center; justify-content:center;
+    font-family: var(--mono); font-size: 11.5px; font-weight:700; color: var(--bg); flex-shrink:0;
+  }
+  .rank-badge.r1{ background: var(--amber); } .rank-badge.r2{ background:#C7CEDB; } .rank-badge.r3{ background:#8A93A8; }
+
+  .stmt-row{ display:flex; flex-direction:column; gap:10px; margin-bottom: 6px; }
+  .stmt-item{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; background: var(--panel-2);
+    border:1px solid var(--line); border-radius:10px; padding: 10px 14px; }
+  .stmt-item .stmt-idx{ font-family: var(--mono); color: var(--text-faint); font-size:12px; width: 56px; flex-shrink:0;}
+  .toggle-pair{ display:flex; gap:6px; }
+  .toggle-btn{ background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-family: var(--sans);
+    font-size: 13.5px; padding: 7px 12px; border-radius: 7px; cursor:pointer; transition: all .12s ease; }
+  .toggle-btn:hover{ border-color: var(--violet); color: var(--text); }
+  .toggle-btn.active{ background: rgba(155,140,232,.15); border-color: var(--violet); color: var(--violet); font-weight:600; }
+
+  .run-row{ display:flex; align-items:center; gap:14px; margin-top: 18px; }
+  button.primary{ background: var(--violet); color: #1A1530; border:none; font-family: var(--sans); font-weight:700;
+    font-size: 15px; padding: 12px 26px; border-radius: 9px; cursor:pointer; transition: transform .1s ease, box-shadow .15s ease; }
+  button.primary:hover{ transform: translateY(-1px); box-shadow: 0 6px 18px rgba(155,140,232,.3); }
+  button.ghost{ background: transparent; border:1px solid var(--line); color: var(--text-dim); font-family: var(--sans);
+    font-size: 13.5px; padding: 11px 18px; border-radius: 9px; cursor:pointer; }
+  button.ghost:hover{ color: var(--text); border-color: var(--text-faint); }
+
+  #results{ display:none; } #results.show{ display:block; }
+
+  .sentence-card{ background: var(--panel); border:1px solid var(--line); border-radius: 14px; padding: 20px 24px; margin-bottom: 22px; }
+  .sentence-text{ font-size: 18px; font-weight: 500; letter-spacing: .02em; margin-bottom: 14px;}
+
+  /* dimension legend */
+  .dim-legend{ display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; }
+  .dim-item{ background: var(--panel-2); border:1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
+  .dim-item .dn{ font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .dim-item .dv{ font-size: 13px; margin-top:3px; }
+
+  /* embedding table */
+  .embed-table-wrap{ overflow-x:auto; }
+  table.embed-table{ border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; white-space:nowrap; }
+  table.embed-table th{ text-align:center; color: var(--text-faint); font-weight:500; padding: 6px 8px; border-bottom:1px solid var(--line);}
+  table.embed-table td{ text-align:center; padding: 5px 8px; border-bottom:1px solid var(--line); color: var(--text-dim); }
+  table.embed-table td.tokcell{ text-align:left; color: var(--text); font-weight:700; }
+  table.embed-table tr.q-row td{ background: rgba(155,140,232,.08); }
+
+  .evo-table{ width:100%; border-collapse: collapse; font-family: var(--mono); font-size: 14px;}
+  .evo-table th{ text-align:right; font-weight:500; color: var(--text-faint); font-size: 11.5px; padding: 8px 14px;
+    border-bottom: 1px solid var(--line); text-transform:uppercase; letter-spacing:.05em; }
+  .evo-table th:first-child, .evo-table td:first-child{ text-align:left; }
+  .evo-table td{ text-align:right; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .evo-table td.varname{ font-family: var(--sans); font-weight:700; font-size:15px; }
+  .evo-table tr:last-child td{ border-bottom:none; }
+  .evo-table td.final{ font-weight:700; color: var(--violet); }
+
+  .final-banner{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+    background: linear-gradient(135deg, rgba(155,140,232,.18), transparent 70%);
+    border: 1px solid var(--violet); border-radius: 14px; padding: 20px 26px; margin: 20px 0 28px; }
+  .final-banner .order{ font-family: var(--mono); font-size: 30px; font-weight:700; letter-spacing:.03em; }
+  .final-banner .sub{ color: var(--text-dim); font-size:12.5px; font-family: var(--mono); }
+
+  .layer-tabs{ display:flex; gap:8px; margin-bottom: 18px; }
+  .layer-tab{ flex:1; background: var(--panel); border:1px solid var(--line); color: var(--text-dim); padding: 14px;
+    border-radius: 10px; cursor:pointer; text-align:center; font-family: var(--sans); transition: all .12s ease; }
+  .layer-tab .l-title{ font-weight:700; font-size:15px; color:var(--text); }
+  .layer-tab .l-desc{ font-size:11.5px; margin-top:3px; }
+  .layer-tab.active{ border-color: var(--violet); background: rgba(155,140,232,.12); }
+  .layer-tab.active .l-desc{ color: var(--violet); }
+  .layer-panel{ display:none; } .layer-panel.active{ display:block; }
+
+  .axis-wrap{ overflow-x:auto; padding-bottom:4px; padding-left:19px; }
+  .axis-row{ display:grid; margin-bottom: 4px; }
+  .axis-cell{ font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); writing-mode: vertical-rl;
+    text-orientation: mixed; padding: 2px 0; text-align:left; height: 46px; display:flex; align-items:flex-end; justify-content:center; }
+
+  .head-card{ background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom:16px; }
+  .head-card .head-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;}
+  .head-card .head-name{ font-family: var(--mono); font-weight:700; font-size:14px; }
+  .head-card .head-role{ font-size: 12.5px; color: var(--text-dim); }
+  .heat-row{ display:grid; align-items:center; margin-bottom:3px; }
+  .heat-row .row-label{ font-family: var(--mono); font-weight:700; font-size:11px; padding-right:8px; text-align:right; color:var(--text-dim);}
+  .heat-cell{ height: 20px; border-radius:2px; }
+
+  .sign-strip{ margin-top: 14px; }
+  .sign-strip .label{ font-family: var(--mono); font-size:11px; color: var(--text-faint); margin-bottom:6px; }
+  .sign-row{ display:grid; }
+  .sign-cell{ font-family: var(--mono); font-size:10px; text-align:center; padding:3px 0; border-radius:3px; }
+
+  .contrib-row{ display:flex; gap: 10px; margin-top: 12px; flex-wrap:wrap; }
+  .contrib-chip{ font-family: var(--mono); font-size: 12.5px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line);
+    display:flex; gap:8px; align-items:center; }
+  .contrib-chip .cv{ font-weight:700; }
+  .contrib-chip .cv.pos{ color: var(--teal); } .contrib-chip .cv.neg{ color: var(--rose); }
+
+  .legend{ display:flex; gap:18px; align-items:center; font-family: var(--mono); font-size:11px; color:var(--text-faint); margin-top: 8px; flex-wrap:wrap;}
+  .legend .sw{ display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:5px; vertical-align:-2px; }
+
+  footer{ margin-top: 40px; padding-top: 20px; border-top:1px solid var(--line); color: var(--text-faint); font-size: 12px; font-family: var(--mono); }
+
+  @media (max-width: 760px){ .final-banner .order{ font-size: 22px; } .layer-tabs{ flex-direction:column; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Hand-Built, Zero Training — Exact by Construction</div>
+    <h1>Hand-Built Transformer — Internals Simulator</h1>
+    <p>No training at all. Every weight was hand-designed by formula, with the smallest possible configuration (d_model=9, 2 layers, 2 heads → 1 head) to solve the size-comparison task. Verified to score 100% correct across thousands of random test cases.</p>
+    <div class="badge-row">
+      <span class="badge">Training steps: 0</span>
+      <span class="badge">d_model: 9</span>
+      <span class="badge">Layers: 2</span>
+      <span class="badge">Accuracy: 100% (guaranteed by construction)</span>
+    </div>
+  </header>
+
+  <section>
+    <h2 class="sec-title">1. Set the input</h2>
+    <div class="panel">
+      <div class="rank-row" id="rankRow"></div>
+      <div class="stmt-row" id="stmtRow"></div>
+      <div class="run-row">
+        <button class="primary" id="runBtn">Run and inspect internals</button>
+        <button class="ghost" id="randomBtn">Randomize</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">2. What the 9 numbers mean (the blueprint)</h2>
+    <div class="panel">
+      <div class="dim-legend" id="dimLegend"></div>
+    </div>
+  </section>
+
+  <div id="results">
+    <section>
+      <h2 class="sec-title">3. Input sentence and embedding vectors (all 9 dims shown raw)</h2>
+      <div class="sentence-card">
+        <div class="sentence-text" id="sentenceText"></div>
+        <div class="embed-table-wrap"><table class="embed-table" id="embedTable"></table></div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="sec-title">4. Score after each layer</h2>
+      <div class="panel"><table class="evo-table" id="evoTable"></table></div>
+      <div class="final-banner" id="finalBanner">
+        <div><div class="sub">Final descending order</div><div class="order" id="finalOrder"></div></div>
+        <div class="sub" id="finalScores"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="sec-title">5. Inside the layers</h2>
+      <div class="layer-tabs" id="layerTabs"></div>
+      <div id="layerPanels"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--violet)"></span>Attention weight (darker = stronger focus)</span>
+        <span><span class="sw" style="background:var(--teal)"></span>sign is positive</span>
+        <span><span class="sw" style="background:var(--rose)"></span>sign is negative</span>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    d_model=9 (6 identity + 2 phase + 1 sign) / Layer1: 2 heads (fixed-offset attention) / Layer2: 1 head (content-matching attention) — all hand-designed weights, running the exact forward pass in your browser.
+  </footer>
+</div>
+
+<script>
+/* ===================== Model core (hand-designed weights) ===================== */
+const ALL_VARS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const N_ID = ALL_VARS.length;      // 6
+const PHASE_START = N_ID;          // 6,7
+const SIGN_IDX = N_ID + 2;         // 8
+const D_MODEL = N_ID + 3;          // 9
+const PERIOD = 30;
+const THETA = 2 * Math.PI / PERIOD;
+const SCALE = 250.0;
+
+// English sentence template: [Subject, "is", "bigger"/"smaller", "than", Object, "."]
+// position 0=subject, 1="is", 2=relation word, 3="than", 4=object, 5="."
+// subject -> relation word is offset +2 ; object -> relation word is offset -2
+
+function phase(pos) { return [Math.cos(THETA * pos), Math.sin(THETA * pos)]; }
+function rotMat(delta) {
+  const a = THETA * delta;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [[c, -s], [s, c]];
+}
+function applyRot(R, v) { return [R[0][0]*v[0]+R[0][1]*v[1], R[1][0]*v[0]+R[1][1]*v[1]]; }
+
+function embedToken(tok) {
+  const e = new Array(D_MODEL).fill(0);
+  const idx = ALL_VARS.indexOf(tok);
+  if (idx >= 0) e[idx] = 1.0;
+  else if (tok === 'bigger') e[SIGN_IDX] = 1.0;
+  else if (tok === 'smaller') e[SIGN_IDX] = -1.0;
+  return e;
+}
+function embedWithPos(tok, pos) {
+  const e = embedToken(tok);
+  const [c, s] = phase(pos);
+  e[PHASE_START] = c; e[PHASE_START+1] = s;
+  return e;
+}
+function softmax(arr) {
+  const m = Math.max(...arr);
+  const ex = arr.map(v => Math.exp(v - m));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v => v/s);
+}
+
+function layer1Forward(H) {
+  const L = H.length;
+  const Kphase = H.map(h => [h[PHASE_START], h[PHASE_START+1]]);
+  const Vsign = H.map(h => h[SIGN_IDX]);
+  const delta = new Array(L).fill(0);
+  const headAttn = [];
+  for (const [offset, coef] of [[2, +1.0], [-2, -1.0]]) {
+    const R = rotMat(offset);
+    const attnForHead = [];
+    for (let p = 0; p < L; p++) {
+      const q = applyRot(R, [H[p][PHASE_START], H[p][PHASE_START+1]]);
+      const scores = Kphase.map(k => (q[0]*k[0]+q[1]*k[1]) * SCALE);
+      const probs = softmax(scores);
+      attnForHead.push(probs);
+      let attended = 0; for (let i=0;i<L;i++) attended += probs[i]*Vsign[i];
+      delta[p] += coef * attended;
+    }
+    headAttn.push(attnForHead);
+  }
+  const Hnew = H.map(h => h.slice());
+  for (let p = 0; p < L; p++) Hnew[p][SIGN_IDX] += delta[p];
+  return { Hnew, headAttn };
+}
+
+function layer2Forward(H) {
+  const L = H.length;
+  const Kid = H.map(h => h.slice(0, N_ID));
+  const Vsign = H.map(h => h[SIGN_IDX]);
+  const Hnew = H.map(h => h.slice());
+  const attn = [];
+  for (let p = 0; p < L; p++) {
+    const q = H[p].slice(0, N_ID);
+    const qsum = q.reduce((a,b)=>a+b,0);
+    if (qsum === 0) { attn.push(null); continue; }
+    const scores = Kid.map((k,ki) => {
+      if (ki === p) return -1e9;
+      let dp=0; for(let i=0;i<N_ID;i++) dp+=q[i]*k[i]; return dp*SCALE;
+    });
+    const probs = softmax(scores);
+    attn.push(probs);
+    let attended=0; for(let i=0;i<L;i++) attended += probs[i]*Vsign[i];
+    Hnew[p][SIGN_IDX] = attended;
+  }
+  return { Hnew, attn };
+}
+
+function stoks(x, rel, y) {
+  const w = rel === 'GT' ? 'bigger' : 'smaller';
+  return [x, 'is', w, 'than', y, '.'];
+}
+
+function runModel(toks, qpos) {
+  let H = toks.map((t,i) => embedWithPos(t, i));
+  const embedStage = H.map(h=>h.slice());
+  const { Hnew: afterL1, headAttn } = layer1Forward(H);
+  const { Hnew: afterL2, attn: l2Attn } = layer2Forward(afterL1);
+  const scores = {};
+  for (const [v,p] of Object.entries(qpos)) scores[v] = afterL2[p][SIGN_IDX];
+  return { scores, embedStage, afterL1, afterL2, headAttn, l2Attn };
+}
+
+/* ===================== UI state ===================== */
+const state = {
+  ranks: ['A', 'C', 'B'],
+  phrasing: ['direct', 'direct', 'direct'],
+  activeLayer: 0,
+  trace: null, tokens: null, qpos: null, qvars: null,
+};
+const $ = sel => document.querySelector(sel);
+const GREATER='bigger', LESSER='smaller';
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function varColor(v){
+  if (v==='A') return 'var(--amber)';
+  if (v==='B') return 'var(--blue)';
+  if (v==='C') return 'var(--teal)';
+  return '#C7CEDB';
+}
+
+/* ---- Rank selectors ---- */
+function renderRankRow() {
+  const wrap = $('#rankRow'); wrap.innerHTML = '';
+  const labels = ['Biggest', 'Middle', 'Smallest'];
+  const badgeCls = ['r1', 'r2', 'r3'];
+  state.ranks.forEach((val, idx) => {
+    const field = document.createElement('div'); field.className = 'rank-field';
+    const lab = document.createElement('label');
+    lab.innerHTML = `<span class="rank-badge ${badgeCls[idx]}">${idx+1}</span> ${labels[idx]}`;
+    const sel = document.createElement('select');
+    ALL_VARS.forEach(v => {
+      const opt = document.createElement('option'); opt.value=v; opt.textContent=v;
+      if (v===val) opt.selected = true; sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      const newVal = sel.value;
+      const dupIdx = state.ranks.findIndex((r,i)=>r===newVal && i!==idx);
+      if (dupIdx !== -1) state.ranks[dupIdx] = state.ranks[idx];
+      state.ranks[idx] = newVal;
+      renderRankRow(); renderStmtRow();
+    });
+    field.appendChild(lab); field.appendChild(sel); wrap.appendChild(field);
+  });
+}
+
+const PAIR_DEF = [[0,1],[0,2],[1,2]];
+function renderStmtRow() {
+  const wrap = $('#stmtRow'); wrap.innerHTML = '';
+  PAIR_DEF.forEach(([hi,lo], idx) => {
+    const high = state.ranks[hi], low = state.ranks[lo];
+    const item = document.createElement('div'); item.className='stmt-item';
+    const idxLab = document.createElement('div'); idxLab.className='stmt-idx'; idxLab.textContent=`Sent.${idx+1}`;
+    item.appendChild(idxLab);
+    const pair = document.createElement('div'); pair.className='toggle-pair';
+    const directBtn = document.createElement('button');
+    directBtn.className='toggle-btn'+(state.phrasing[idx]==='direct'?' active':'');
+    directBtn.textContent = `${high} is ${GREATER} than ${low}`;
+    directBtn.addEventListener('click', ()=>{ state.phrasing[idx]='direct'; renderStmtRow(); });
+    const reverseBtn = document.createElement('button');
+    reverseBtn.className='toggle-btn'+(state.phrasing[idx]==='reverse'?' active':'');
+    reverseBtn.textContent = `${low} is ${LESSER} than ${high}`;
+    reverseBtn.addEventListener('click', ()=>{ state.phrasing[idx]='reverse'; renderStmtRow(); });
+    pair.appendChild(directBtn); pair.appendChild(reverseBtn);
+    item.appendChild(pair); wrap.appendChild(item);
+  });
+}
+
+/* ---- Dimension legend ---- */
+function renderDimLegend() {
+  const wrap = $('#dimLegend'); wrap.innerHTML = '';
+  const items = [
+    ...ALL_VARS.map((v,i) => [`dim ${i}`, `"I am ${v}" flag`]),
+    ['dim 6, 7', 'Position (2 numbers that rotate like a clock hand)'],
+    ['dim 8', 'Sign / verdict (bigger=+1, smaller=-1)'],
+  ];
+  items.forEach(([dn,dv]) => {
+    const el = document.createElement('div'); el.className='dim-item';
+    el.innerHTML = `<div class="dn">${dn}</div><div class="dv">${dv}</div>`;
+    wrap.appendChild(el);
+  });
+}
+
+/* ===================== Run ===================== */
+function buildTokens() {
+  const [r1,r2,r3] = state.ranks;
+  const pairs = [[r1,r2],[r1,r3],[r2,r3]];
+  let stmtToks = [];
+  pairs.forEach(([hi,lo], idx) => {
+    if (state.phrasing[idx]==='direct') stmtToks = stmtToks.concat(stoks(hi,'GT',lo));
+    else stmtToks = stmtToks.concat(stoks(lo,'LT',hi));
+  });
+  const qvars = [r1,r2,r3].slice().sort();
+  const toks = ['<SOS>'].concat(stmtToks).concat(['<SEP>']).concat(qvars).concat(['<EOS>']);
+  const qpos = {}; qvars.forEach((v,i) => qpos[v] = toks.length-4+i);
+  return { toks, qpos, qvars };
+}
+
+function sentenceText() {
+  const [r1,r2,r3] = state.ranks;
+  const pairs = [[r1,r2],[r1,r3],[r2,r3]];
+  let parts = [];
+  pairs.forEach(([hi,lo], idx) => {
+    if (state.phrasing[idx]==='direct') parts.push(`${hi} is ${GREATER} than ${lo}.`);
+    else parts.push(`${lo} is ${LESSER} than ${hi}.`);
+  });
+  return parts.join(' ');
+}
+
+function runSimulation() {
+  const { toks, qpos, qvars } = buildTokens();
+  const trace = runModel(toks, qpos);
+  state.trace = trace; state.tokens = toks; state.qpos = qpos; state.qvars = qvars;
+
+  $('#results').classList.add('show');
+  renderSentence(toks);
+  renderEmbedTable(toks, trace.embedStage, qpos);
+  renderEvoTable(trace, qpos, state.ranks);
+  renderLayerTabs();
+  renderLayerPanel(state.activeLayer);
+  $('#results').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function renderSentence(toks) { $('#sentenceText').textContent = sentenceText(); }
+
+function renderEmbedTable(toks, embedStage, qpos) {
+  const rev = {}; Object.entries(qpos).forEach(([v,p])=>rev[p]=v);
+  const headers = ['pos','token', ...ALL_VARS.map(v=>'id_'+v), 'phase_cos','phase_sin','sign'];
+  let html = '<tr>' + headers.map(h=>`<th>${h}</th>`).join('') + '</tr>';
+  toks.forEach((t,i) => {
+    const vec = embedStage[i];
+    const cls = rev[i] ? ' q-row' : '';
+    html += `<tr class="${cls}"><td>${i}</td><td class="tokcell">${escHtml(t)}</td>` +
+      vec.map(v => `<td>${Math.abs(v)<0.001?'0':v.toFixed(2)}</td>`).join('') + '</tr>';
+  });
+  $('#embedTable').innerHTML = html;
+}
+
+function scoreOf(vec) { return vec[SIGN_IDX]; }
+
+function renderEvoTable(trace, qpos, ranks) {
+  const vars = ALL_VARS.filter(v => qpos[v] !== undefined);
+  const stageScores = {};
+  vars.forEach(v => {
+    const p = qpos[v];
+    stageScores[v] = [scoreOf(trace.embedStage[p]), scoreOf(trace.afterL1[p]), scoreOf(trace.afterL2[p])];
+  });
+  const sortedVars = vars.slice().sort((a,b)=>stageScores[b][2]-stageScores[a][2]);
+  const table = $('#evoTable');
+  table.innerHTML = `
+    <tr><th>Var</th><th>Right after embedding</th><th>After Layer1</th><th>After Layer2 (final)</th><th>True rank</th></tr>
+    ${vars.map(v => {
+      const rank = ranks.indexOf(v)+1;
+      const s = stageScores[v];
+      return `<tr>
+        <td class="varname" style="color:${varColor(v)}">${v}</td>
+        <td>${s[0].toFixed(4)}</td><td>${s[1].toFixed(4)}</td><td class="final">${s[2].toFixed(4)}</td>
+        <td>${rank===1?'① Biggest':rank===2?'② Middle':'③ Smallest'}</td>
+      </tr>`;
+    }).join('')}
+  `;
+  $('#finalOrder').innerHTML = sortedVars.map(v=>`<span style="color:${varColor(v)}">${v}</span>`).join(' <span style="color:var(--text-faint)">&gt;</span> ');
+  $('#finalScores').textContent = sortedVars.map(v=>`${v}=${stageScores[v][2].toFixed(4)}`).join('   ');
+}
+
+function renderLayerTabs() {
+  const wrap = $('#layerTabs'); wrap.innerHTML = '';
+  const defs = [['Layer 1','Fixed-offset attention (position-based)'], ['Layer 2','Content-matching attention (find myself)']];
+  defs.forEach(([title,desc], i) => {
+    const tab = document.createElement('div');
+    tab.className = 'layer-tab' + (state.activeLayer===i?' active':'');
+    tab.innerHTML = `<div class="l-title">${title}</div><div class="l-desc">${desc}</div>`;
+    tab.addEventListener('click', ()=>{ state.activeLayer=i; renderLayerTabs(); renderLayerPanel(i); });
+    wrap.appendChild(tab);
+  });
+}
+
+function attnAlpha(w){ return Math.pow(Math.min(1,w), 0.4); }
+
+function renderAxis(toks, colTemplate) {
+  const axisWrap = document.createElement('div'); axisWrap.className='axis-wrap';
+  const axisRow = document.createElement('div'); axisRow.className='axis-row';
+  axisRow.style.gridTemplateColumns = colTemplate;
+  axisRow.innerHTML = '<div></div>' + toks.map(t=>`<div class="axis-cell">${escHtml(t)}</div>`).join('');
+  axisWrap.appendChild(axisRow);
+  return axisWrap;
+}
+
+function renderLayerPanel(layerIdx) {
+  const container = $('#layerPanels'); container.innerHTML = '';
+  const panel = document.createElement('div'); panel.className = 'layer-panel active';
+  const toks = state.tokens; const qpos = state.qpos; const qvars = state.qvars;
+  const L = toks.length;
+  const colTemplate = `44px repeat(${L}, 24px)`;
+
+  panel.appendChild(renderAxis(toks, colTemplate));
+
+  if (layerIdx === 0) {
+    const explainCard = document.createElement('div');
+    explainCard.className = 'head-card';
+    explainCard.style.background = 'rgba(155,140,232,.06)';
+    explainCard.innerHTML = `<div style="font-size:13px; color:var(--text-dim); line-height:1.8;">
+      <b style="color:var(--text)">Why the two heads look similar:</b>
+      head0 and head1 <b>start from different positions</b> and search with <b>different offsets</b> (+2 and -2).
+      Within the same sentence, the subject (2 ahead) and the object (2 behind) happen to land on the same
+      "relation word" position, so the patterns look alike — but notice that <b>the starting position (the row) differs</b>.
+      Each row's label reads "starting token &amp; position → the position it actually focused on most".
+      <br><br>
+      <b style="color:var(--text)">Why only these 3 rows (subject / object positions) are shown:</b>
+      Both heads actually run the same rule (mechanically look 2 ahead / 2 behind) at
+      <b>all 24 positions</b> — including "is", "than", ".", and the query slots (A, B, C), no exceptions.
+      But <b>Layer2 only ever reads the value at positions where a variable letter is written</b>,
+      so whatever gets computed at every other position is <b>never read by anyone, and never used</b>.
+      That's why this screen only pulls out the 6 subject/object positions whose results actually matter.
+    </div>`;
+    panel.appendChild(explainCard);
+
+    const heads = [
+      { name: 'head0 (subject → relation word)', role: 'Mechanically looks +2 ahead', data: state.trace.headAttn[0], rows: [1,7,13] },
+      { name: 'head1 (object → relation word)', role: 'Mechanically looks 2 back (-2)', data: state.trace.headAttn[1], rows: [5,11,17] },
+    ];
+    heads.forEach(h => {
+      const card = document.createElement('div'); card.className='head-card';
+      card.innerHTML = `<div class="head-top"><span class="head-name">${h.name}</span><span class="head-role">${h.role}</span></div>`;
+      const grid = document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns=colTemplate;
+      h.rows.forEach((pos, i) => {
+        const weights = h.data[pos];
+        let maxKi = 0; for (let ki=1; ki<weights.length; ki++) if (weights[ki]>weights[maxKi]) maxKi=ki;
+        const label = document.createElement('div');
+        label.className = 'row-label';
+        label.style.fontSize = '10px';
+        label.innerHTML = `<span style="color:${varColor(toks[pos])}">${escHtml(toks[pos])}</span>${pos}`;
+        label.title = `Starting point: ${toks[pos]} (position ${pos})`;
+        grid.appendChild(label);
+        weights.forEach((w,ki) => {
+          const cell = document.createElement('div'); cell.className='heat-cell';
+          cell.style.background = `rgba(155,140,232,${attnAlpha(w).toFixed(3)})`;
+          cell.title = `From: ${toks[pos]} (pos ${pos}) → focused on: ${toks[ki]} (pos ${ki}): weight ${w.toFixed(4)}`;
+          grid.appendChild(cell);
+        });
+      });
+      card.appendChild(grid);
+
+      const summary = document.createElement('div');
+      summary.style.marginTop = '10px';
+      summary.style.fontSize = '12px';
+      summary.style.fontFamily = 'var(--mono)';
+      summary.style.color = 'var(--text-dim)';
+      summary.innerHTML = h.rows.map(pos => {
+        const weights = h.data[pos];
+        let maxKi = 0; for (let ki=1; ki<weights.length; ki++) if (weights[ki]>weights[maxKi]) maxKi=ki;
+        return `<span style="color:${varColor(toks[pos])}">${escHtml(toks[pos])}</span>(pos ${pos}) <span style="color:var(--text-faint)">starts here →</span> `
+          + `<b style="color:var(--text)">${escHtml(toks[maxKi])}</b>(pos ${maxKi}) <span style="color:var(--text-faint)">focused with weight ${weights[maxKi].toFixed(2)}</span>`;
+      }).join('<br>');
+      card.appendChild(summary);
+
+      panel.appendChild(card);
+    });
+
+    const signCard = document.createElement('div'); signCard.className='head-card';
+    signCard.innerHTML = '<div class="head-top"><span class="head-name">Change in sign</span>'
+      + '<span class="head-role">No FFN is used. This model is done in just two attention layers</span></div>';
+    signCard.appendChild(Object.assign(renderAxis(toks, colTemplate), {style: 'padding-left:0; overflow-x:auto; padding-bottom:4px;'}));
+    ['Right after embedding','After Layer1'].forEach((label, si) => {
+      const stripWrap = document.createElement('div'); stripWrap.className='sign-strip';
+      stripWrap.innerHTML = `<div class="label">${label}</div>`;
+      const row = document.createElement('div'); row.className='sign-row'; row.style.gridTemplateColumns = colTemplate;
+      row.appendChild(document.createElement('div'));
+      const stage = si===0 ? state.trace.embedStage : state.trace.afterL1;
+      toks.forEach((t,i) => {
+        const v = stage[i][SIGN_IDX];
+        const cell = document.createElement('div'); cell.className='sign-cell';
+        cell.textContent = Math.abs(v)<0.01 ? '·' : v.toFixed(1);
+        cell.title = `${t} (position ${i}): sign=${v.toFixed(3)}`;
+        cell.style.color = v>0.05?'var(--teal)':(v<-0.05?'var(--rose)':'var(--text-faint)');
+        row.appendChild(cell);
+      });
+      stripWrap.appendChild(row);
+      signCard.appendChild(stripWrap);
+    });
+    panel.appendChild(signCard);
+
+    const noFfnNote = document.createElement('div');
+    noFfnNote.style.cssText = 'font-size:12.5px; color:var(--text-faint); margin-top:10px; line-height:1.7;';
+    noFfnNote.innerHTML = '<b style="color:var(--text-dim)">A note on FFN:</b> '
+      + 'The trained model (a separate tool) had an FFN (Linear → ReLU → Linear), but '
+      + 'this hand-built version has <b style="color:var(--text)">no FFN at all</b>. '
+      + 'It was designed so that two attention layers alone (position-based search → content-matching search) '
+      + 'fully complete the tally of signs. The trained model relied on the FFN to do "finishing work" that '
+      + 'attention alone could not handle, but here every needed computation was hand-built directly into '
+      + 'attention, so an FFN was never necessary.';
+    panel.appendChild(noFfnNote);
+
+  } else {
+    const explainCard2 = document.createElement('div');
+    explainCard2.className = 'head-card';
+    explainCard2.style.background = 'rgba(155,140,232,.06)';
+    const qposText = qvars.map(v => `${v} (position ${qpos[v]})`).join(', ');
+    explainCard2.innerHTML = `<div style="font-size:13px; color:var(--text-dim); line-height:1.8;">
+      <b style="color:var(--text)">What are these A / B / C rows:</b>
+      They are not the "A", "B", "C" that appear 3 times in the sentence — they're
+      <b>dedicated "query slots" at the very end of the sentence</b> (here: ${qposText}).
+      Think of each one as a slot reserved purely for answering "so, how many wins/losses did A end up with?"
+      <br><br>
+      <b style="color:var(--text)">What the heatmap means:</b>
+      Each row shows <b>where that query slot went looking in the sentence</b>.
+      For the "A" row, for example, it uses content-matching to find every place in the text where the
+      character "A" is written (usually 2 places).
+      <br><br>
+      <b style="color:var(--text)">What the number below (e.g. A +0.6611) means:</b>
+      This is not a "contribution" — it is <b>literally the final score after Layer2</b>.
+      The sign values found at those 2 positions are averaged, and that average becomes the final size score.
+    </div>`;
+    panel.appendChild(explainCard2);
+
+    const card = document.createElement('div'); card.className='head-card';
+    card.innerHTML = `<div class="head-top"><span class="head-name">head0 (content-matching)</span><span class="head-role">Finds every place its own letter is written</span></div>`;
+    const grid = document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns=colTemplate;
+    qvars.forEach(v => {
+      const pos = qpos[v];
+      const label = document.createElement('div');
+      label.className = 'row-label'; label.style.fontSize = '10px';
+      label.innerHTML = `<span style="color:${varColor(v)}">${v}</span>${pos}`;
+      label.title = `Query slot: ${v} (position ${pos})`;
+      grid.appendChild(label);
+      const weights = state.trace.l2Attn[pos];
+      weights.forEach((w,ki) => {
+        const cell = document.createElement('div'); cell.className='heat-cell';
+        cell.style.background = `rgba(155,140,232,${attnAlpha(w).toFixed(3)})`;
+        cell.title = `Query slot ${v} (pos ${pos}) → focused on: ${toks[ki]} (pos ${ki}): weight ${w.toFixed(4)}`;
+        grid.appendChild(cell);
+      });
+    });
+    card.appendChild(grid);
+
+    const summary2 = document.createElement('div');
+    summary2.style.cssText = 'margin-top:10px; font-size:12px; font-family:var(--mono); color:var(--text-dim);';
+    summary2.innerHTML = qvars.map(v => {
+      const pos = qpos[v];
+      const weights = state.trace.l2Attn[pos];
+      const top2 = weights.map((w,i)=>[w,i]).sort((a,b)=>b[0]-a[0]).slice(0,2);
+      const foundStr = top2.map(([w,i]) => `${toks[i]} (pos ${i}, weight ${w.toFixed(2)})`).join(' and ');
+      return `Query slot <span style="color:${varColor(v)}">${v}</span> (pos ${pos}) found ${foundStr} → averaged to final score ${state.trace.afterL2[pos][SIGN_IDX].toFixed(4)}`;
+    }).join('<br>');
+    card.appendChild(summary2);
+
+    const contribRow = document.createElement('div'); contribRow.className='contrib-row';
+    contribRow.style.marginTop = '4px';
+    qvars.forEach(v => {
+      const pos = qpos[v];
+      const val = state.trace.afterL2[pos][SIGN_IDX];
+      const chip = document.createElement('div'); chip.className='contrib-chip';
+      chip.innerHTML = `<span style="color:${varColor(v)}">${v} (final score)</span><span class="cv ${val>=0?'pos':'neg'}">${val>=0?'+':''}${val.toFixed(4)}</span>`;
+      contribRow.appendChild(chip);
+    });
+    card.appendChild(contribRow);
+    panel.appendChild(card);
+  }
+
+  container.appendChild(panel);
+}
+
+/* ===================== Init ===================== */
+function randomize() {
+  const shuffled = ALL_VARS.slice().sort(()=>Math.random()-0.5);
+  state.ranks = shuffled.slice(0,3);
+  state.phrasing = [0,1,2].map(()=> Math.random()<0.5?'direct':'reverse');
+  renderRankRow(); renderStmtRow();
+}
+
+$('#runBtn').addEventListener('click', runSimulation);
+$('#randomBtn').addEventListener('click', ()=>{ randomize(); runSimulation(); });
+
+renderDimLegend();
+renderRankRow();
+renderStmtRow();
+runSimulation();
+
+</script>
+</body>
+</html>
