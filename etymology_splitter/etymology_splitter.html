@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.5 — Etymology Splitter</title>
+<title>語源分解ツール ver1.6 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -237,6 +237,14 @@
     color:var(--ink-soft);
     margin-bottom:3px;
   }
+  .caveat{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--hairline);
+    font-size:12px;
+    line-height:1.6;
+    color:#9a6a3a;
+  }
 
   .note{
     margin-top:40px;
@@ -265,7 +273,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.5</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.6</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -368,7 +376,13 @@ const PREFIXES_RAW = [
   [["un"],"〜でない、否定","ゲルマン語"],
   [["under"],"下に、不足して","ゲルマン語"],
   [["uni"],"単一の、1つの","ラテン語"],
-  [["with"],"逆に、〜に対して","ゲルマン語"]
+  [["with"],"逆に、〜に対して","ゲルマン語"],
+  [["be"],"〜にする、〜を付ける（動詞化）","ゲルマン語"],
+  [["for"],"否定、強意","ゲルマン語"],
+  [["fore"],"前もって、前に","ゲルマン語"],
+  [["out"],"外へ、超えて","ゲルマン語"],
+  [["over"],"超えて、過度に","ゲルマン語"],
+  [["up"],"上へ","ゲルマン語"]
 ];
 
 const ROOTS_RAW = [
@@ -417,6 +431,12 @@ const ROOTS_RAW = [
   [["dit","dat"],"与える","ラテン語（dare）"],
   [["habit","hibit"],"持つ、保つ","ラテン語（habere）"],
   [["punct","pung"],"刺す、点","ラテン語（pungere）"],
+  [["pir","peir"],"試す、経験する","ギリシャ語（peira）"],
+  [["tric"],"絡み合う、障害","ラテン語（tricae）"],
+  [["vast"],"荒れた、広大な","ラテン語（vastus）"],
+  [["mence"],"始める","古フランス語（commencier）","この語は古フランス語 commencier が英語にほぼ一語のまま取り込まれたもので、com-とmenceを別々の意味単位として切るのはやや強引な便宜的分解です。"],
+  [["acerb"],"辛い、厳しい","ラテン語（acerbus）"],
+  [["dwind"],"衰える、弱まる","古英語（dwinan）","この語根は現代英語ではdwindle以外にほとんど使われない、やや孤立した形です。"],
   [["derm"],"皮膚","ギリシャ語"],
   [["dic","dict"],"言う","ラテン語"],
   [["doc","doct"],"教える","ラテン語"],
@@ -526,7 +546,22 @@ const ROOTS_RAW = [
   [["viv","vit"],"生きる","ラテン語"],
   [["voc","vok","vok"],"声、呼ぶ","ラテン語"],
   [["vol"],"意思、望む","ラテン語"],
-  [["zo"],"動物","ギリシャ語"]
+  [["zo"],"動物","ギリシャ語"],
+  [["stow"],"置く、しまう","古英語"],
+  [["stand"],"立つ","古英語"],
+  [["come"],"来る","古英語"],
+  [["give"],"与える","古英語"],
+  [["hold"],"保つ、つかむ","古英語"],
+  [["take"],"取る","古英語/古ノルド語"],
+  [["set"],"置く","古英語"],
+  [["look"],"見る","古英語"],
+  [["throw"],"投げる","古英語"],
+  [["draw"],"引く","古英語"],
+  [["do"],"する、行う","古英語"],
+  [["grow"],"育つ、成長する","古英語"],
+  [["cast"],"投げる","古ノルド語"],
+  [["head"],"頭","古英語"],
+  [["see"],"見る","古英語"]
 ];
 
 const SUFFIXES_RAW = [
@@ -557,6 +592,7 @@ const SUFFIXES_RAW = [
   [["ify","fy"],"〜にする","ラテン語"],
   [["hood"],"状態・期間","ゲルマン語"],
   [["ic","ical"],"〜に関する（形容詞化）","ギリシャ語"],
+  [["um"],"〜のもの・こと（中性名詞語尾）","ラテン語"],
   [["ing"],"進行・動名詞","ゲルマン語"],
   [["ish"],"〜のような","ゲルマン語"],
   [["ism"],"主義・状態","ギリシャ語"],
@@ -566,6 +602,7 @@ const SUFFIXES_RAW = [
   [["ize","ise"],"〜にする、〜化する","ギリシャ語"],
   [["less"],"〜がない","ゲルマン語"],
   [["let"],"小さい","フランス語"],
+  [["le"],"〜を繰り返す、〜し続ける（反復・持続を表す）","ゲルマン語","この-leはラテン語・ギリシャ語の接尾辞ほど規則的ではなく、sparkle・wrinkle・crackleのような一部のゲルマン語系の動詞にゆるく見られるパターンです。"],
   [["like"],"〜のような","ゲルマン語"],
   [["logy","ology"],"〜学、学問","ギリシャ語"],
   [["ly"],"〜のように、〜的に","ゲルマン語"],
@@ -582,7 +619,7 @@ const SUFFIXES_RAW = [
 ];
 
 function buildEntries(raw, type){
-  return raw.map(([forms,meaning,origin])=>({forms,meaning,origin,type}));
+  return raw.map(([forms,meaning,origin,note])=>({forms,meaning,origin,note,type}));
 }
 const PREFIX_ENTRIES = buildEntries(PREFIXES_RAW,'prefix');
 const ROOT_ENTRIES = buildEntries(ROOTS_RAW,'root');
@@ -620,60 +657,81 @@ function findMatches(sub, list, strict){
 function decomposeWord(word){
   const n = word.length;
   if(n===0) return [];
-  const dp = new Array(n+1).fill(null);
-  dp[0] = {cost:0, prev:-1, piece:null, entries:null, kind:null, prefixOk:true};
+  // 3状態DP:
+  //   P = まだ接頭辞の連続だけ（語根に一度も到達していない）
+  //   N = 接頭辞ゾーンは抜けたが、まだ語根が見つかっていない（不明・連結母音・接尾辞のみ）
+  //   R = すでに語根に到達済み
+  // 最終的には「語根を含む分割」を必ず優先する（P止まり・N止まりのまま
+  // 単語全体が終わってしまうのは、たとえコスト計算上は安く見えても
+  // 言語学的にはほぼ常に誤り＝語根が一つもない単語は実在しないため）。
+  const dp = new Array(n+1).fill(null).map(()=>({P:null,N:null,R:null}));
+  dp[0].P = {cost:0, prev:-1, prevState:null, piece:null, entries:null, kind:null};
 
   for(let i=0;i<n;i++){
-    if(!dp[i]) continue;
-    const maxLen = Math.min(8, n-i);
-    for(let len=maxLen; len>=1; len--){
-      const j = i+len;
-      const sub = word.slice(i,j);
-      const cost = dp[i].cost + 1 - len*0.02;
+    for(const state of ['P','N','R']){
+      const cur = dp[i][state];
+      if(!cur) continue;
+      const maxLen = Math.min(8, n-i);
+      for(let len=maxLen; len>=1; len--){
+        const j = i+len;
+        const sub = word.slice(i,j);
+        const cost = cur.cost + 1 - len*0.02;
 
-      // 接頭辞は「まだ接頭辞しか出ていない先頭からの連続部分」でのみ許可する。
-      // そうしないと、"al"（"-al"接尾辞であると同時に ad- の同化形でもある）
-      // のような綴りが、単語の末尾にあっても接頭辞として誤って選ばれてしまう。
-      if(dp[i].prefixOk){
-        const pMatches = findMatches(sub, PREFIX_ENTRIES, true);
-        if(pMatches.length && (!dp[j] || cost < dp[j].cost)){
-          dp[j] = {cost, prev:i, piece:sub, entries:pMatches, kind:'prefix', prefixOk:true};
+        // 接頭辞は「まだ接頭辞しか出ていない先頭からの連続部分」(P状態)でのみ許可。
+        // "al"（"-al"接尾辞であると同時にad-の同化形でもある）等が単語の
+        // 途中・末尾で接頭辞として誤って選ばれるのを防ぐ。
+        if(state==='P'){
+          const pMatches = findMatches(sub, PREFIX_ENTRIES, true);
+          if(pMatches.length && (!dp[j].P || cost < dp[j].P.cost)){
+            dp[j].P = {cost, prev:i, prevState:state, piece:sub, entries:pMatches, kind:'prefix'};
+          }
+        }
+        // 語根: どの状態からでも遷移でき、着地状態は必ずR
+        const rMatches = findMatches(sub, ROOT_ENTRIES);
+        if(rMatches.length && (!dp[j].R || cost < dp[j].R.cost)){
+          dp[j].R = {cost, prev:i, prevState:state, piece:sub, entries:rMatches, kind:'root'};
+        }
+        // 接尾辞: 既にRならRのまま、そうでなければN
+        const sMatches = findMatches(sub, SUFFIX_ENTRIES);
+        if(sMatches.length){
+          const ns = state==='R' ? 'R' : 'N';
+          if(!dp[j][ns] || cost < dp[j][ns].cost){
+            dp[j][ns] = {cost, prev:i, prevState:state, piece:sub, entries:sMatches, kind:'suffix'};
+          }
         }
       }
-      // 語根・接尾辞は綴りの揺れ（黙字のe、子音重複）をある程度許容する
-      const rMatches = findMatches(sub, ROOT_ENTRIES);
-      if(rMatches.length && (!dp[j] || cost < dp[j].cost)){
-        dp[j] = {cost, prev:i, piece:sub, entries:rMatches, kind:'root', prefixOk:false};
+      // 連結母音（連結インターフィックス）1文字: bio-o-logy のようなケース
+      if(word[i]==='o' || word[i]==='i' || word[i]==='u'){
+        const j = i+1;
+        const cost = cur.cost + 0.3;
+        const ns = state==='R' ? 'R' : 'N';
+        if(!dp[j][ns] || cost < dp[j][ns].cost){
+          dp[j][ns] = {cost, prev:i, prevState:state, piece:word[i], entries:null, kind:'connector'};
+        }
       }
-      const sMatches = findMatches(sub, SUFFIX_ENTRIES);
-      if(sMatches.length && (!dp[j] || cost < dp[j].cost)){
-        dp[j] = {cost, prev:i, piece:sub, entries:sMatches, kind:'suffix', prefixOk:false};
-      }
-    }
-    // 連結母音（連結インターフィックス）1文字: bio-o-logy のようなケース
-    if(word[i]==='o' || word[i]==='i' || word[i]==='u'){
-      const j = i+1;
-      const cost = dp[i].cost + 0.3;
-      if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {cost, prev:i, piece:word[i], entries:null, kind:'connector', prefixOk:false};
-      }
-    }
-    // 不明な1文字（辞書に一致しない場合の最終手段、コスト高）
-    {
-      const j = i+1;
-      const cost = dp[i].cost + 40;
-      if(!dp[j] || cost < dp[j].cost){
-        dp[j] = {cost, prev:i, piece:word[i], entries:null, kind:'unknown', prefixOk:false};
+      // 不明な1文字（辞書に一致しない場合の最終手段、コスト高）
+      {
+        const j = i+1;
+        const cost = cur.cost + 40;
+        const ns = state==='R' ? 'R' : 'N';
+        if(!dp[j][ns] || cost < dp[j][ns].cost){
+          dp[j][ns] = {cost, prev:i, prevState:state, piece:word[i], entries:null, kind:'unknown'};
+        }
       }
     }
   }
 
+  // 単語末尾での状態選択: 語根を含む分割(R)があれば必ずそれを優先する。
+  // なければN、それもなければP（＝語根が一つも見つからなかった場合の最終手段）。
+  const endState = dp[n].R ? 'R' : (dp[n].N ? 'N' : 'P');
+
   // 復元
   const seq = [];
-  let cur = n;
+  let cur = n, state = endState;
   while(cur>0){
-    const node = dp[cur];
+    const node = dp[cur][state];
     seq.unshift(node);
+    state = node.prevState;
     cur = node.prev;
   }
 
@@ -691,10 +749,28 @@ function decomposeWord(word){
 }
 
 /* ---------- メイン分解関数 ---------- */
+/* ---------- 単語ごとの補足注釈 ----------
+   接頭辞・語根・接尾辞の辞書上の意味は単語をまたいで共有されているため、
+   「この単語のこの断片だけは、辞書の代表的な意味とは少しニュアンスが違う」
+   という注釈は、辞書エントリーではなく単語単位でここに登録する。
+   （例: ex- は普段は「外へ」だが、exacerbateでは強調の意味合いが強い） */
+const WORD_NOTES = {
+  'exacerbate': {
+    'ex': 'ここでの ex- は「外へ」という原義よりも、「徹底的に、完全に」という強調の意味合いで使われています。'
+  }
+};
+
 function decompose(rawWord){
   const word = rawWord.toLowerCase().replace(/[^a-z]/g,'');
   if(!word) return null;
-  return decomposeWord(word);
+  const result = decomposeWord(word);
+  const notes = WORD_NOTES[word];
+  if(notes){
+    result.forEach(p=>{
+      if(notes[p.piece]) p.wordNote = notes[p.piece];
+    });
+  }
+  return result;
 }
 
 /* ---------- 描画 ---------- */
@@ -762,10 +838,12 @@ function render(word){
           ${multi?`<div class="meaning-idx">語源${i+1}</div>`:''}
           <div class="meaning">${escapeHtml(e.meaning)}</div>
           <div class="origin">${escapeHtml(e.origin)}</div>
+          ${e.note?`<div class="caveat">※ ${escapeHtml(e.note)}</div>`:''}
         </div>`).join('');
       cardsHtml += `<div class="card ${kind}">
         <div class="frag">${escapeHtml(p.piece)}<span class="type-badge">${typeLabels[kind]}</span></div>
         ${meaningsHtml}
+        ${p.wordNote?`<div class="caveat">※ ${escapeHtml(p.wordNote)}</div>`:''}
       </div>`;
     }
   });
