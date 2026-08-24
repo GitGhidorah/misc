@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.6 — Etymology Splitter</title>
+<title>語源分解ツール ver1.7 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -273,7 +273,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.6</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.7</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -533,7 +533,8 @@ const ROOTS_RAW = [
   [["tempor","temp"],"時間","ラテン語"],
   [["terr"],"土地、地球","ラテン語"],
   [["test"],"証明する","ラテン語"],
-  [["the","theo"],"神","ギリシャ語"],
+  [["theo"],"神","ギリシャ語"],
+  [["theor"],"見る、考察する","ギリシャ語（theorein）"],
   [["therm"],"熱","ギリシャ語"],
   [["tract"],"引く","ラテン語"],
   [["urb"],"都市","ラテン語"],
@@ -638,8 +639,21 @@ function candidatesFor(sub, strict){
   }
   return [...set];
 }
-function findMatches(sub, list, strict){
-  for(const cand of candidatesFor(sub, strict)){
+// 語根専用の候補生成: 短い綴りに対する「黙字のe付加」は行わない。
+// これを一般のcandidatesForと共有すると、"th"(2文字)が"the"(語根)に
+// 化けて "other" "together" "weather" のような無関係な単語にまで
+// マッチしてしまう（子音重複の圧縮は語根でも有用なので残す）。
+function candidatesForRoot(sub){
+  const set = new Set([sub]);
+  if(sub.length>=3) set.add(sub+'e');
+  if(sub.length>2 && sub[sub.length-1]===sub[sub.length-2]){
+    set.add(sub.slice(0,-1));
+  }
+  return [...set];
+}
+function findMatches(sub, list, strict, isRootLike){
+  const cands = (!strict && isRootLike) ? candidatesForRoot(sub) : candidatesFor(sub, strict);
+  for(const cand of cands){
     const m = list.filter(e=>e.forms.includes(cand));
     if(m.length) return m;
   }
@@ -656,7 +670,8 @@ function findMatches(sub, list, strict){
    合計コストが最小になる分割を選ぶ。これにより "ad-di-(不明)-ion" より
    "ad-dict-ion" の方が（既知の断片が多く合計コストが低いため）自然に
    優先されるようになる。 */
-function decomposeWord(word){
+function decomposeWord(word, rootEntries){
+  rootEntries = rootEntries || ROOT_ENTRIES;
   const n = word.length;
   if(n===0) return [];
   // 3状態DP:
@@ -689,7 +704,7 @@ function decomposeWord(word){
           }
         }
         // 語根: どの状態からでも遷移でき、着地状態は必ずR
-        const rMatches = findMatches(sub, ROOT_ENTRIES);
+        const rMatches = findMatches(sub, rootEntries, false, true);
         if(rMatches.length && (!dp[j].R || cost < dp[j].R.cost)){
           dp[j].R = {cost, prev:i, prevState:state, piece:sub, entries:rMatches, kind:'root'};
         }
@@ -762,10 +777,28 @@ const WORD_NOTES = {
   }
 };
 
+/* ---------- 単語ごとの語根除外 ----------
+   2つの語根候補が偶然コスト計算上ちょうど同点になり、語源的に正しくない
+   方が選ばれてしまうことがある。"theory"はその例で、"theo"（神）と
+   "theor"（見る、考察する）がどちらも数値上は同じコストになってしまうが、
+   theoryの語源はtheos（神）ではなくthea（見ること）+horan（見る）に遡る
+   theoria（観想）で、"theo"はここでは誤り。該当語根をこの単語の分解から
+   除外することで、正しい方に確定させる。 */
+const WORD_ROOT_EXCLUDE = {
+  'theory': ['theo'],
+  'theorem': ['theo'],
+  'theoretical': ['theo'],
+  'theorize': ['theo']
+};
+
 function decompose(rawWord){
   const word = rawWord.toLowerCase().replace(/[^a-z]/g,'');
   if(!word) return null;
-  const result = decomposeWord(word);
+  const excluded = WORD_ROOT_EXCLUDE[word];
+  const rootEntries = excluded
+    ? ROOT_ENTRIES.filter(e=>!e.forms.some(f=>excluded.includes(f)))
+    : ROOT_ENTRIES;
+  const result = decomposeWord(word, rootEntries);
   const notes = WORD_NOTES[word];
   if(notes){
     result.forEach(p=>{
