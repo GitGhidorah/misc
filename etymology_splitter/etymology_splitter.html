@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.8 — Etymology Splitter</title>
+<title>語源分解ツール ver1.9 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -273,7 +273,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.8</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.9</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -396,7 +396,7 @@ const ROOTS_RAW = [
   [["astro","aster"],"星","ギリシャ語"],
   [["aud","audit"],"聞く","ラテン語"],
   [["bio"],"生命","ギリシャ語"],
-  [["cap","capt","cept","ceive","cip"],"取る、つかむ","ラテン語"],
+  [["cap","capt","cept","ceive","cip","cipl"],"取る、つかむ","ラテン語"],
   [["cardi","cardio"],"心臓","ギリシャ語"],
   [["cord"],"心","ラテン語"],
   [["carn"],"肉","ラテン語"],
@@ -433,6 +433,7 @@ const ROOTS_RAW = [
   [["habit","hibit"],"持つ、保つ","ラテン語（habere）"],
   [["punct","pung"],"刺す、点","ラテン語（pungere）"],
   [["pir","peir"],"試す、経験する","ギリシャ語（peira）"],
+  [["prec"],"祈る、頼む","ラテン語（precari）"],
   [["tric"],"絡み合う、障害","ラテン語（tricae）"],
   [["vast"],"荒れた、広大な","ラテン語（vastus）"],
   [["mence"],"始める","古フランス語（commencier）","この語は古フランス語 commencier が英語にほぼ一語のまま取り込まれたもので、com-とmenceを別々の意味単位として切るのはやや強引な便宜的分解です。"],
@@ -598,6 +599,7 @@ const SUFFIXES_RAW = [
   [["ify","fy"],"〜にする","ラテン語"],
   [["hood"],"状態・期間","ゲルマン語"],
   [["ic","ical"],"〜に関する（形容詞化）","ギリシャ語"],
+  [["ine"],"場所・慣行・性質を表す","ラテン語（-ina）"],
   [["um"],"〜のもの・こと（中性名詞語尾）","ラテン語"],
   [["ing"],"進行・動名詞","ゲルマン語"],
   [["ish"],"〜のような","ゲルマン語"],
@@ -791,7 +793,12 @@ const WORD_ROOT_EXCLUDE = {
   'theory': ['theo'],
   'theorem': ['theo'],
   'theoretical': ['theo'],
-  'theorize': ['theo']
+  'theorize': ['theo'],
+  'discipline': ['lign','line'],
+  'disciplinary': ['lign','line'],
+  'disciplined': ['lign','line'],
+  'disciplines': ['lign','line'],
+  'disciplining': ['lign','line']
 };
 
 function decompose(rawWord){
