@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver1.9 — Etymology Splitter</title>
+<title>語源分解ツール ver2.0 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -273,7 +273,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver1.9</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.0</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -434,6 +434,8 @@ const ROOTS_RAW = [
   [["punct","pung"],"刺す、点","ラテン語（pungere）"],
   [["pir","peir"],"試す、経験する","ギリシャ語（peira）"],
   [["prec"],"祈る、頼む","ラテン語（precari）"],
+  [["cav"],"用心する、警戒する","ラテン語（cavere）"],
+  [["plic","ploy","ply"],"折る","ラテン語（plicare）"],
   [["tric"],"絡み合う、障害","ラテン語（tricae）"],
   [["vast"],"荒れた、広大な","ラテン語（vastus）"],
   [["mence"],"始める","古フランス語（commencier）","この語は古フランス語 commencier が英語にほぼ一語のまま取り込まれたもので、com-とmenceを別々の意味単位として切るのはやや強引な便宜的分解です。"],
@@ -675,8 +677,9 @@ function findMatches(sub, list, strict, isRootLike){
    合計コストが最小になる分割を選ぶ。これにより "ad-di-(不明)-ion" より
    "ad-dict-ion" の方が（既知の断片が多く合計コストが低いため）自然に
    優先されるようになる。 */
-function decomposeWord(word, rootEntries){
+function decomposeWord(word, rootEntries, suffixEntries){
   rootEntries = rootEntries || ROOT_ENTRIES;
+  suffixEntries = suffixEntries || SUFFIX_ENTRIES;
   const n = word.length;
   if(n===0) return [];
   // 3状態DP:
@@ -714,7 +717,7 @@ function decomposeWord(word, rootEntries){
           dp[j].R = {cost, prev:i, prevState:state, piece:sub, entries:rMatches, kind:'root'};
         }
         // 接尾辞: 既にRならRのまま、そうでなければN
-        const sMatches = findMatches(sub, SUFFIX_ENTRIES);
+        const sMatches = findMatches(sub, suffixEntries);
         if(sMatches.length){
           const ns = state==='R' ? 'R' : 'N';
           if(!dp[j][ns] || cost < dp[j][ns].cost){
@@ -779,6 +782,9 @@ function decomposeWord(word, rootEntries){
 const WORD_NOTES = {
   'exacerbate': {
     'ex': 'ここでの ex- は「外へ」という原義よりも、「徹底的に、完全に」という強調の意味合いで使われています。'
+  },
+  'caveat': {
+    'eat': 'これは英語の接尾辞ではありません。caveatはラテン語の動詞 cavere（用心する）の三人称単数接続法「彼は用心せよ」がそのまま英語に取り込まれた1語で、veto（我は禁ずる）やmemento（覚えておけ）と同じく、活用形ごと丸ごと借用された化石的な単語です。'
   }
 };
 
@@ -801,14 +807,27 @@ const WORD_ROOT_EXCLUDE = {
   'disciplining': ['lign','line']
 };
 
+/* ---------- 単語ごとの接尾辞除外 ----------
+   語根と同様、接尾辞も短い形（"e","at"など）が偶然組み合わさって、
+   本来は分解不能な化石的な語尾（例: caveatの"-eat"はラテン語の
+   活用語尾で、英語の接尾辞ではない）を誤って埋めてしまうことがある。
+   該当の接尾辞候補を除外し、正直に「不明」として表示させる。 */
+const WORD_SUFFIX_EXCLUDE = {
+  'caveat': ['ee','ate']
+};
+
 function decompose(rawWord){
   const word = rawWord.toLowerCase().replace(/[^a-z]/g,'');
   if(!word) return null;
-  const excluded = WORD_ROOT_EXCLUDE[word];
-  const rootEntries = excluded
-    ? ROOT_ENTRIES.filter(e=>!e.forms.some(f=>excluded.includes(f)))
+  const excludedRoots = WORD_ROOT_EXCLUDE[word];
+  const rootEntries = excludedRoots
+    ? ROOT_ENTRIES.filter(e=>!e.forms.some(f=>excludedRoots.includes(f)))
     : ROOT_ENTRIES;
-  const result = decomposeWord(word, rootEntries);
+  const excludedSuffixes = WORD_SUFFIX_EXCLUDE[word];
+  const suffixEntries = excludedSuffixes
+    ? SUFFIX_ENTRIES.filter(e=>!e.forms.some(f=>excludedSuffixes.includes(f)))
+    : SUFFIX_ENTRIES;
+  const result = decomposeWord(word, rootEntries, suffixEntries);
   const notes = WORD_NOTES[word];
   if(notes){
     result.forEach(p=>{
@@ -874,6 +893,7 @@ function render(word){
         <div class="frag">${escapeHtml(p.piece)}<span class="type-badge"${badgeStyle}>不明</span></div>
         <div class="meaning">辞書に一致する接頭辞・語根・接尾辞が見つかりませんでした。</div>
         <div class="origin">—</div>
+        ${p.wordNote?`<div class="caveat">※ ${escapeHtml(p.wordNote)}</div>`:''}
       </div>`;
     } else {
       const entries = p.entries;
