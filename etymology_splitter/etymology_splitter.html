@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver2.1 — Etymology Splitter</title>
+<title>語源分解ツール ver2.2 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -273,7 +273,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.1</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.2</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -486,7 +486,7 @@ const ROOTS_RAW = [
   [["brev"],"短い","ラテン語（brevis）"],
   [["horr","hor"],"ぞっとする","ラテン語（horrere）"],
   [["norm"],"規範、基準","ラテン語（norma）"],
-  [["cant"],"歌う","ラテン語（canere）"],
+  [["cant","cent"],"歌う","ラテン語（canere）"],
   [["mod"],"型、様式","ラテン語（modus）"],
   [["apt"],"適した","ラテン語（aptus）"],
   [["ept"],"得る","ラテン語（adipisci）"],
@@ -677,6 +677,7 @@ const ROOTS_RAW = [
   [["pregn"],"妊娠した","ラテン語（praegnans）"],
   [["crimin"],"罪","ラテン語（crimen）"],
   [["furt"],"盗み","ラテン語（furtum）"],
+  [["fast"],"固い、しっかりした","古英語（fæst）"],
   [["ignit"],"火をつける","ラテン語（ignire）"],
   [["suad","suas"],"勧める","ラテン語（suadere）"],
   [["oti"],"暇、余暇","ラテン語（otium）"],
@@ -729,7 +730,7 @@ const ROOTS_RAW = [
   [["nation"],"国民、国家","ラテン語"],
   [["nav","navig"],"船","ラテン語"],
   [["neur"],"神経","ギリシャ語"],
-  [["nom","nym"],"名前","ギリシャ語/ラテン語"],
+  [["nom","nym","nomin"],"名前","ギリシャ語/ラテン語"],
   [["nov"],"新しい","ラテン語"],
   [["numer"],"数","ラテン語"],
   [["ocul"],"目","ラテン語"],
@@ -993,7 +994,14 @@ function decomposeWord(word, rootEntries, suffixEntries){
 
   // 単語末尾での状態選択: 語根を含む分割(R)があれば必ずそれを優先する。
   // なければN、それもなければP（＝語根が一つも見つからなかった場合の最終手段）。
-  const endState = dp[n].R ? 'R' : (dp[n].N ? 'N' : 'P');
+  let endState;
+  if(dp[n].R){
+    endState = 'R';
+  } else if(dp[n].N && dp[n].P){
+    endState = dp[n].N.cost <= dp[n].P.cost ? 'N' : 'P';
+  } else {
+    endState = dp[n].N ? 'N' : 'P';
+  }
 
   // 復元
   const seq = [];
@@ -1049,7 +1057,11 @@ const WORD_ROOT_EXCLUDE = {
   'disciplinary': ['lign','line'],
   'disciplined': ['lign','line'],
   'disciplines': ['lign','line'],
-  'disciplining': ['lign','line']
+  'disciplining': ['lign','line'],
+  'century': ['cant'],
+  'centuries': ['cant'],
+  'percent': ['cant'],
+  'percentage': ['cant']
 };
 
 /* ---------- 単語ごとの接尾辞除外 ----------
