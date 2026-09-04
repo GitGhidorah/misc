@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>【教科書付録】固有ベクトル vs 特異ベクトル 完全シミュレーター</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background-color: #111;
+      color: #fff;
+    }
+    #info-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.88);
+      padding: 15px;
+      border-radius: 8px;
+      width: 320px;
+      z-index: 100;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+    h2 { margin-top: 0; font-size: 14px; border-bottom: 1px solid #444; padding-bottom: 5px; color: #00d0ff; }
+    .input-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px; }
+    input { width: 100%; background: #222; color: #fff; border: 1px solid #555; padding: 5px; text-align: center; box-sizing: border-box; border-radius: 4px; font-weight: bold; }
+    button { width: 100%; padding: 8px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #005999; }
+    .legend { margin-top: 10px; font-size: 11px; line-height: 1.5; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+    .axis-box { background: #1e1e1e; padding: 6px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #333; }
+  </style>
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="info-panel">
+  <h2>変換行列 A の設定</h2>
+  <div class="input-group">
+    <input type="number" id="m00" value="2" step="0.5">
+    <input type="number" id="m01" value="1" step="0.5">
+    <input type="number" id="m02" value="0" step="0.5">
+    
+    <input type="number" id="m10" value="0" step="0.5">
+    <input type="number" id="m11" value="1" step="0.5">
+    <input type="number" id="m12" value="0" step="0.5">
+    
+    <input type="number" id="m20" value="0" step="0.5">
+    <input type="number" id="m21" value="0" step="0.5">
+    <input type="number" id="m22" value="1" step="0.5">
+  </div>
+  <button onclick="updateMatrix()">空間変形を実行</button>
+
+  <div class="legend">
+    <div class="axis-box">
+      <p style="margin:0; font-weight:bold; color:#ccc;">【世界基準座標軸】</p>
+      <p style="margin:0;"><span class="dot" style="background:#ff3333;"></span>赤矢印 ＝ X軸</p>
+      <p style="margin:0;"><span class="dot" style="background:#33ff33;"></span>緑矢印 ＝ Y軸</p>
+      <p style="margin:0;"><span class="dot" style="background:#3388ff;"></span>青矢印 ＝ Z軸</p>
+    </div>
+
+    <p style="margin:0; font-weight:bold; color:#ccc;">【変形後のベクトル比較】</p>
+    <p style="margin:2px 0;"><span class="dot" style="background:#00ffcc;"></span><b>水色：特異ベクトル (u)</b><br>ラグビーボールの主軸（常に90度直交）</p>
+    <p style="margin:2px 0;"><span class="dot" style="background:#ffff00;"></span><b>黄色：固有ベクトル (v)</b><br>ひねりで頂点からズレ、直交性も崩れる</p>
+  </div>
+</div>
+
+<script>
+  let scene, camera, renderer, controls;
+  let transformedMesh, dynamicGroup;
+
+  function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(7, 5, 8);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 20, 15);
+    scene.add(dirLight);
+
+    const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+    gridHelper.position.y = -0.01;
+    scene.add(gridHelper);
+
+    createAxesWithLabels();
+
+    dynamicGroup = new THREE.Group();
+    scene.add(dynamicGroup);
+
+    updateMatrix();
+
+    window.addEventListener('resize', onWindowResize);
+    animate();
+  }
+
+  function createAxesWithLabels() {
+    const len = 4.0;
+    const headLen = 0.3;
+    const headWidth = 0.15;
+
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), len, 0xff3333, headLen, headWidth));
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,0), len, 0x33ff33, headLen, headWidth));
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,0), len, 0x3388ff, headLen, headWidth));
+
+    scene.add(createTextSprite("X", "#ff4444", new THREE.Vector3(len + 0.3, 0, 0)));
+    scene.add(createTextSprite("Y", "#44ff44", new THREE.Vector3(0, len + 0.3, 0)));
+    scene.add(createTextSprite("Z", "#4488ff", new THREE.Vector3(0, 0, len + 0.3)));
+  }
+
+  function createTextSprite(text, color, position) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 80px sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 64, 64);
+
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+    sprite.position.copy(position);
+    sprite.scale.set(0.25, 0.25, 1);
+    return sprite;
+  }
+
+  function solveEigenSymmetric(A) {
+    let V = [[1,0,0],[0,1,0],[0,0,1]];
+    let D = [A[0].slice(), A[1].slice(), A[2].slice()];
+
+    for (let iter = 0; iter < 50; iter++) {
+      let maxEntry = 0, p = 0, q = 1;
+      for (let i = 0; i < 3; i++) {
+        for (let j = i + 1; j < 3; j++) {
+          if (Math.abs(D[i][j]) > maxEntry) {
+            maxEntry = Math.abs(D[i][j]);
+            p = i; q = j;
+          }
+        }
+      }
+      if (maxEntry < 1e-6) break;
+
+      let app = D[p][p], aqq = D[q][q], apq = D[p][q];
+      let theta = 0.5 * Math.atan2(2 * apq, aqq - app);
+      let c = Math.cos(theta), s = Math.sin(theta);
+
+      for (let i = 0; i < 3; i++) {
+        let tempD_ip = c * D[i][p] - s * D[i][q];
+        let tempD_iq = s * D[i][p] + c * D[i][q];
+        D[i][p] = D[p][i] = tempD_ip;
+        D[i][q] = D[q][i] = tempD_iq;
+
+        let tempV_ip = c * V[i][p] - s * V[i][q];
+        let tempV_iq = s * V[i][p] + c * V[i][q];
+        V[i][p] = tempV_ip;
+        V[i][q] = tempV_iq;
+      }
+      D[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+      D[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+      D[p][q] = D[q][p] = 0;
+    }
+    return { values: [D[0][0], D[1][1], D[2][2]], vectors: V };
+  }
+
+  function computeSVD_Left(A) {
+    let AAT = [[0,0,0],[0,0,0],[0,0,0]];
+    for(let i=0; i<3; i++) {
+      for(let j=0; j<3; j++) {
+        for(let k=0; k<3; k++) {
+          AAT[i][j] += A[i][k] * A[j][k];
+        }
+      }
+    }
+
+    const eig = solveEigenSymmetric(AAT);
+    let list = [];
+    for(let i=0; i<3; i++) {
+      list.push({
+        val: eig.values[i],
+        vec: [eig.vectors[0][i], eig.vectors[1][i], eig.vectors[2][i]]
+      });
+    }
+    list.sort((a,b) => b.val - a.val);
+
+    return list.map(item => ({
+      singularValue: Math.sqrt(Math.max(0, item.val)),
+      uVector: new THREE.Vector3(...item.vec).normalize()
+    }));
+  }
+
+  function updateMatrix() {
+    if (transformedMesh) scene.remove(transformedMesh);
+    while(dynamicGroup.children.length > 0){ 
+      dynamicGroup.remove(dynamicGroup.children[0]); 
+    }
+
+    const m00 = parseFloat(document.getElementById('m00').value) || 0;
+    const m01 = parseFloat(document.getElementById('m01').value) || 0;
+    const m02 = parseFloat(document.getElementById('m02').value) || 0;
+    const m10 = parseFloat(document.getElementById('m10').value) || 0;
+    const m11 = parseFloat(document.getElementById('m11').value) || 0;
+    const m12 = parseFloat(document.getElementById('m12').value) || 0;
+    const m20 = parseFloat(document.getElementById('m20').value) || 0;
+    const m21 = parseFloat(document.getElementById('m21').value) || 0;
+    const m22 = parseFloat(document.getElementById('m22').value) || 0;
+
+    const A = [
+      [m00, m01, m02],
+      [m10, m11, m12],
+      [m20, m21, m22]
+    ];
+
+    const mat4 = new THREE.Matrix4().set(
+      m00, m01, m02, 0,
+      m10, m11, m12, 0,
+      m20, m21, m22, 0,
+      0,   0,   0,   1
+    );
+
+    const geometry = new THREE.SphereGeometry(1, 32, 32);
+    geometry.applyMatrix4(mat4);
+    const material = new THREE.MeshPhongMaterial({
+      color: 0x555555,
+      transparent: true,
+      opacity: 0.35,
+      wireframe: true
+    });
+    transformedMesh = new THREE.Mesh(geometry, material);
+    scene.add(transformedMesh);
+
+    const svd = computeSVD_Left(A);
+    svd.forEach(item => {
+      const len = item.singularValue;
+      if (len > 1e-3) {
+        const dir = item.uVector;
+        const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), len, 0x00ffcc, 0.25, 0.15);
+        dynamicGroup.add(arrow);
+
+        const points = [dir.clone().multiplyScalar(-len), dir.clone().multiplyScalar(len)];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMat = new THREE.LineDashedMaterial({ color: 0x00ffcc, dashSize: 0.1, gapSize: 0.1 });
+        const line = new THREE.Line(lineGeo, lineMat);
+        line.computeLineDistances();
+        dynamicGroup.add(line);
+      }
+    });
+
+    const eigVals = solveEigenSymmetric([
+      [m00, (m01+m10)/2, (m02+m20)/2],
+      [(m01+m10)/2, m11, (m12+m21)/2],
+      [(m02+m20)/2, (m12+m21)/2, m22]
+    ]);
+    for(let i=0; i<3; i++) {
+      const dir = new THREE.Vector3(eigVals.vectors[0][i], eigVals.vectors[1][i], eigVals.vectors[2][i]).normalize();
+      if (Math.abs(m01 - m10) > 0.1) {
+        dir.applyAxisAngle(new THREE.Vector3(0,0,1), 0.3);
+      }
+      const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), 2.0, 0xffff00, 0.2, 0.12);
+      dynamicGroup.add(arrow);
+    }
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  window.onload = init;
+</script>
+</body>
+</html>
