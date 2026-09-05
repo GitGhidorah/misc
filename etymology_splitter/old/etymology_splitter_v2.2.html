@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>語源分解ツール ver2.2 — Etymology Splitter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EFEAE0;
+    --paper-dim:#E6E0D3;
+    --ink:#221F1A;
+    --ink-soft:#5B5548;
+    --hairline:#D3CAB6;
+    --prefix:#3B4A78;
+    --prefix-bg:#E4E8F1;
+    --root:#9C4A2E;
+    --root-bg:#F3E4DC;
+    --suffix:#3F6B4C;
+    --suffix-bg:#E2ECE3;
+    --unknown:#8A8074;
+    --unknown-bg:#EAE5DA;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Work Sans',sans-serif;
+    min-height:100vh;
+    padding:48px 20px 80px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+
+  header{margin-bottom:36px;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-optical-sizing:auto;
+    font-weight:600;
+    font-size:34px;
+    margin:0 0 10px;
+    letter-spacing:-0.01em;
+  }
+  p.lead{
+    color:var(--ink-soft);
+    font-size:15px;
+    line-height:1.7;
+    margin:0;
+    max-width:56ch;
+  }
+
+  .input-row{
+    display:flex;
+    gap:10px;
+    margin:32px 0 12px;
+  }
+  input[type="text"]{
+    flex:1;
+    font-family:'Fraunces',serif;
+    font-size:22px;
+    font-weight:500;
+    padding:14px 18px;
+    background:#fff;
+    border:1.5px solid var(--hairline);
+    border-radius:3px;
+    color:var(--ink);
+    outline:none;
+  }
+  input[type="text"]:focus{
+    border-color:var(--root);
+  }
+  button#splitBtn{
+    font-family:'Work Sans',sans-serif;
+    font-weight:600;
+    font-size:15px;
+    padding:0 26px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:3px;
+    cursor:pointer;
+    transition:background 0.15s ease;
+  }
+  button#splitBtn:hover{background:#3a352c;}
+
+  .examples{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:20px;
+  }
+  .examples span{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    padding-top:3px;
+  }
+  .ex-chip{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    padding:4px 10px;
+    background:var(--paper-dim);
+    border:1px solid var(--hairline);
+    border-radius:20px;
+    cursor:pointer;
+    color:var(--ink-soft);
+  }
+  .ex-chip:hover{border-color:var(--ink-soft);color:var(--ink);}
+
+  #result{margin-top:44px;}
+
+  .word-display{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-end;
+    gap:0;
+    border-bottom:1px solid var(--hairline);
+    padding-bottom:28px;
+    margin-bottom:0;
+  }
+  .piece{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:44px;
+    line-height:1;
+    padding:0 2px 10px;
+    border-bottom:5px solid transparent;
+    position:relative;
+    cursor:default;
+  }
+  .piece.prefix{border-color:var(--prefix);}
+  .piece.root{border-color:var(--root);}
+  .piece.suffix{border-color:var(--suffix);}
+  .piece.unknown{border-color:var(--unknown); opacity:0.55;}
+  .piece.connector{border-color:var(--hairline); opacity:0.4; font-size:32px;}
+
+  .stitch{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0;
+    margin-bottom:34px;
+  }
+  .stitch-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding-top:14px;
+  }
+  .stitch-line{
+    width:1px;
+    height:14px;
+    background:var(--hairline);
+  }
+  .stitch-dot{
+    width:6px;height:6px;border-radius:50%;
+    margin-top:-3px;
+  }
+  .stitch-col.prefix .stitch-dot{background:var(--prefix);}
+  .stitch-col.root .stitch-dot{background:var(--root);}
+  .stitch-col.suffix .stitch-dot{background:var(--suffix);}
+  .stitch-col.unknown .stitch-dot{background:var(--unknown);}
+  .stitch-col.connector .stitch-dot{background:transparent;}
+
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:12px;
+  }
+  .card{
+    background:#fff;
+    border:1px solid var(--hairline);
+    border-left:4px solid var(--ink-soft);
+    border-radius:2px;
+    padding:16px 18px;
+  }
+  .card.prefix{border-left-color:var(--prefix);}
+  .card.root{border-left-color:var(--root);}
+  .card.suffix{border-left-color:var(--suffix);}
+  .card.unknown{border-left-color:var(--unknown);}
+
+  .card .frag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:16px;
+    font-weight:500;
+    margin-bottom:6px;
+  }
+  .card .type-badge{
+    display:inline-block;
+    font-size:10.5px;
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:0.05em;
+    padding:2px 7px;
+    border-radius:20px;
+    margin-left:8px;
+    vertical-align:middle;
+    position:relative;
+    top:-1px;
+  }
+  .card.prefix .type-badge{background:var(--prefix-bg);color:var(--prefix);}
+  .card.root .type-badge{background:var(--root-bg);color:var(--root);}
+  .card.suffix .type-badge{background:var(--suffix-bg);color:var(--suffix);}
+  .card.unknown .type-badge{background:var(--unknown-bg);color:var(--unknown);}
+
+  .card .meaning{
+    font-size:14.5px;
+    line-height:1.6;
+    margin-bottom:4px;
+  }
+  .card .origin{
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .meaning-group{
+    padding-top:8px;
+    margin-top:8px;
+    border-top:1px dashed var(--hairline);
+  }
+  .meaning-group:first-child{
+    padding-top:0;
+    margin-top:0;
+    border-top:none;
+  }
+  .meaning-idx{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.05em;
+    color:var(--ink-soft);
+    margin-bottom:3px;
+  }
+  .caveat{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--hairline);
+    font-size:12px;
+    line-height:1.6;
+    color:#9a6a3a;
+  }
+
+  .note{
+    margin-top:40px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    line-height:1.7;
+    border-top:1px dashed var(--hairline);
+    padding-top:16px;
+  }
+
+  .empty-state{
+    color:var(--ink-soft);
+    font-size:14px;
+    padding:20px 0;
+  }
+
+  @media (max-width:480px){
+    h1{font-size:26px;}
+    .piece{font-size:30px;}
+    .input-row{flex-direction:column;}
+    button#splitBtn{padding:14px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.2</div>
+    <h1>英単語を語源の要素に分割する</h1>
+    <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
+  </header>
+
+  <div class="input-row">
+    <input type="text" id="wordInput" placeholder="例: international" autocomplete="off" spellcheck="false">
+    <button id="splitBtn">分解する</button>
+  </div>
+
+  <div class="examples">
+    <span>試す:</span>
+    <span class="ex-chip" data-w="international">international</span>
+    <span class="ex-chip" data-w="unbelievable">unbelievable</span>
+    <span class="ex-chip" data-w="television">television</span>
+    <span class="ex-chip" data-w="biology">biology</span>
+    <span class="ex-chip" data-w="transport">transport</span>
+    <span class="ex-chip" data-w="microscope">microscope</span>
+    <span class="ex-chip" data-w="incident">incident</span>
+  </div>
+
+  <div id="result">
+    <div class="empty-state">単語を入力して「分解する」を押してください。</div>
+  </div>
+
+  <div class="note">
+    ※ このツールは接頭辞・語根・接尾辞の代表的なパターンによる<strong>簡易的な</strong>ルールベースの分解です。綴りの変化（黙字のe、子音重複、連結母音など）にはある程度対応していますが、すべての単語を言語学的に正確に分解できるわけではありません。灰色の断片は辞書に一致しなかった部分です。
+  </div>
+
+</div>
+
+<script>
+/* ---------- 語源データベース ---------- */
+// [forms(綴りバリエーション), 意味, 語源]
+const PREFIXES_RAW = [
+  [["a","an"],"〜がない、否定","ギリシャ語"],
+  [["a"],"〜へ、〜の状態で","古英語（on-）/フランス語（à）"],
+  [["ab","abs"],"〜から離れて","ラテン語"],
+  [["ad","ac","af","ag","al","ap","ar","as","at"],"〜へ、〜に向かって","ラテン語"],
+  [["ambi","amphi"],"両方の、周りの","ラテン語/ギリシャ語"],
+  [["ana"],"上へ、再び","ギリシャ語"],
+  [["ante"],"前に","ラテン語"],
+  [["anti","ant"],"反対、〜に対抗して","ギリシャ語"],
+  [["apo"],"離れて、〜から","ギリシャ語"],
+  [["auto"],"自己、自動","ギリシャ語"],
+  [["bene","ben"],"良い、善い","ラテン語"],
+  [["equi"],"等しい","ラテン語（aequus）"],
+  [["exo"],"外の","ギリシャ語（exo）"],
+  [["juxta"],"並んで","ラテン語（juxta）"],
+  [["bi","bin"],"2つの","ラテン語"],
+  [["duo","du"],"2つの","ラテン語（duo）"],
+  [["cata","cat"],"下へ、完全に","ギリシャ語"],
+  [["circum"],"周りに","ラテン語"],
+  [["co","com","con","col","cor"],"共に、一緒に","ラテン語"],
+  [["contra","counter","contro"],"反対に","ラテン語"],
+  [["cent"],"100の","ラテン語（centum）"],
+  [["de"],"下へ、離れて、否定","ラテン語"],
+  [["dia"],"通して、横切って","ギリシャ語"],
+  [["dis","di","dif"],"否定、分離","ラテン語"],
+  [["dys"],"悪い、不良の","ギリシャ語"],
+  [["e","ex","ec","ef"],"外へ、〜から","ラテン語/ギリシャ語"],
+  [["em","en"],"中へ、〜にする","ギリシャ語/ラテン語"],
+  [["endo"],"内部の","ギリシャ語"],
+  [["epi"],"上に、〜の際に","ギリシャ語"],
+  [["eu"],"良い、心地よい","ギリシャ語"],
+  [["extra"],"外の、範囲を超えた","ラテン語"],
+  [["hemi"],"半分の","ギリシャ語"],
+  [["hetero"],"異なる、他の","ギリシャ語"],
+  [["homo"],"同じ","ギリシャ語"],
+  [["hyper"],"過度に、〜を超えて","ギリシャ語"],
+  [["hypo"],"下に、不足","ギリシャ語"],
+  [["il","im","in","ir"],"否定、または「中へ」","ラテン語"],
+  [["inter"],"〜の間に","ラテン語"],
+  [["intra","intro"],"内部に","ラテン語"],
+  [["macro"],"大きい、巨視的な","ギリシャ語"],
+  [["mal"],"悪い、不良の","ラテン語"],
+  [["meta"],"超えた、変化した","ギリシャ語"],
+  [["micro"],"小さい、微小な","ギリシャ語"],
+  [["mis"],"誤り、悪く","ゲルマン語"],
+  [["mono"],"単一の、1つの","ギリシャ語"],
+  [["multi"],"多数の","ラテン語"],
+  [["neg","nec"],"否定、〜でない","ラテン語"],
+  [["neo"],"新しい","ギリシャ語"],
+  [["non"],"〜でない、否定","ラテン語"],
+  [["ob","oc","of","op"],"〜に向かって、〜に対して","ラテン語"],
+  [["omni"],"すべての","ラテン語"],
+  [["pan"],"すべての","ギリシャ語"],
+  [["para"],"側に、〜に反して","ギリシャ語"],
+  [["per"],"通して、完全に","ラテン語"],
+  [["peri"],"周りに","ギリシャ語"],
+  [["poly"],"多数の","ギリシャ語"],
+  [["post"],"後に","ラテン語"],
+  [["pre"],"前に、あらかじめ","ラテン語"],
+  [["pro","pur"],"前へ、〜のために","ラテン語/ギリシャ語"],
+  [["pseudo"],"偽の","ギリシャ語"],
+  [["re"],"再び、戻って","ラテン語"],
+  [["se"],"離れて、別に","ラテン語"],
+  [["retro"],"後ろへ","ラテン語"],
+  [["semi"],"半分の","ラテン語"],
+  [["sub","suc","suf","sug","sum","sup","sur","sus"],"下に、〜の下で","ラテン語"],
+  [["super","sur"],"上に、超えて","ラテン語"],
+  [["syn","sym","syl","sy"],"共に、一緒に","ギリシャ語"],
+  [["tele"],"遠く離れた","ギリシャ語"],
+  [["trans","tra"],"越えて、横切って","ラテン語"],
+  [["tri"],"3つの","ラテン語/ギリシャ語"],
+  [["ultra"],"超えて、極端に","ラテン語"],
+  [["un"],"〜でない、否定","ゲルマン語"],
+  [["under"],"下に、不足して","ゲルマン語"],
+  [["uni"],"単一の、1つの","ラテン語"],
+  [["with"],"逆に、〜に対して","ゲルマン語"],
+  [["be"],"〜にする、〜を付ける（動詞化）","ゲルマン語"],
+  [["for"],"否定、強意","ゲルマン語"],
+  [["fore"],"前もって、前に","ゲルマン語"],
+  [["out"],"外へ、超えて","ゲルマン語"],
+  [["over"],"超えて、過度に","ゲルマン語"],
+  [["up"],"上へ","ゲルマン語"]
+];
+
+const ROOTS_RAW = [
+  [["ag","act","agi","agit"],"行う、動かす","ラテン語"],
+  [["alt"],"高い","ラテン語"],
+  [["ann","enn"],"年","ラテン語"],
+  [["anthrop"],"人間","ギリシャ語"],
+  [["aqu"],"水","ラテン語"],
+  [["arch"],"支配する、最初の","ギリシャ語"],
+  [["astro","aster"],"星","ギリシャ語"],
+  [["aud","audit"],"聞く","ラテン語"],
+  [["bio"],"生命","ギリシャ語"],
+  [["cap","capt","cept","ceive","cip","cipl","capac","cupy"],"取る、つかむ","ラテン語"],
+  [["cardi","cardio"],"心臓","ギリシャ語"],
+  [["cord"],"心","ラテン語"],
+  [["carn"],"肉","ラテン語"],
+  [["ced","ceed","cess"],"行く、進む","ラテン語"],
+  [["chrom"],"色","ギリシャ語"],
+  [["chron"],"時間","ギリシャ語"],
+  [["cid","cis"],"切る、殺す","ラテン語（caedere）"],
+  [["cid","cas","cad"],"落ちる、生じる","ラテン語（cadere）"],
+  [["circ"],"輪、円","ラテン語"],
+  [["clam","claim"],"叫ぶ","ラテン語"],
+  [["clud","clus","clos"],"閉じる","ラテン語"],
+  [["cognit","gnos","gnost","cogn"],"知る","ラテン語/ギリシャ語"],
+  [["corp"],"体","ラテン語"],
+  [["crac","crat"],"支配、統治","ギリシャ語"],
+  [["cred"],"信じる","ラテン語"],
+  [["cur","curr","curs"],"走る","ラテン語"],
+  [["dem"],"民衆","ギリシャ語"],
+  [["dent","dont"],"歯","ラテン語/ギリシャ語"],
+  [["greg"],"群れ","ラテン語（grex/gregis）"],
+  [["tutor"],"教える人、後見人","ラテン語（tueri「見守る」より）"],
+  [["fabric"],"作ること、技巧","ラテン語（faber「職人」より）"],
+  [["ject"],"投げる","ラテン語（jacere）"],
+  [["tect"],"覆う","ラテン語（tegere）"],
+  [["vect","veh"],"運ぶ","ラテン語（vehere）"],
+  [["popul"],"民衆、人々","ラテン語（populus）"],
+  [["lig","liga"],"結びつける","ラテン語（ligare）"],
+  [["fort"],"強い","ラテン語（fortis）"],
+  [["fort"],"運、幸運","ラテン語（fortuna）"],
+  [["san"],"健全な、健康な","ラテン語（sanus）"],
+  [["narr"],"語る、告げる","ラテン語（narrare）"],
+  [["mens","mensur"],"測る","ラテン語（metiri）"],
+  [["alter","ulter"],"他の、変える","ラテン語（alter）"],
+  [["dit","dat","dot"],"与える","ラテン語（dare/ギリシャ語didonai）"],
+  [["habit","hibit","habil"],"持つ、保つ","ラテン語（habere）"],
+  [["punct","pung"],"刺す、点","ラテン語（pungere）"],
+  [["pir","peir"],"試す、経験する","ギリシャ語（peira）"],
+  [["prec"],"祈る、頼む","ラテン語（precari）"],
+  [["cav"],"用心する、警戒する","ラテン語（cavere）"],
+  [["plic","ploy","ply","pli"],"折る","ラテン語（plicare）"],
+  [["tric","trig"],"絡み合う、障害","ラテン語（tricae）"],
+  [["vast"],"荒れた、広大な","ラテン語（vastus）"],
+  [["mence"],"始める","古フランス語（commencier）","この語は古フランス語 commencier が英語にほぼ一語のまま取り込まれたもので、com-とmenceを別々の意味単位として切るのはやや強引な便宜的分解です。"],
+  [["acerb"],"辛い、厳しい","ラテン語（acerbus）"],
+  [["art"],"技術、技巧","ラテン語（ars/art-）"],
+  [["art"],"関節、つなぎ目","ラテン語（artus）"],
+  [["lign","line"],"線","ラテン語（linea）"],
+  [["dwind"],"衰える、弱まる","古英語（dwinan）","この語根は現代英語ではdwindle以外にほとんど使われない、やや孤立した形です。"],
+  [["euver"],"働く","ラテン語（operari）","この-euverはラテン語operari「働く」が古フランス語manuevreを経て大きく縮約された形で、maneuver/manoeuvre以外にはほぼ現れない孤立した綴りです。"],
+  [["jeopard"],"五分五分の状態、危険","古フランス語（jeu parti「五分五分の勝負」）","これは古フランス語 jeu「勝負」+ parti「分かれた」という2語の複合表現がまるごと1つの単語に縮約されたもので、jeopardy/jeopardize以外にはほぼ現れない孤立した綴りです。"],
+  [["trib"],"与える、割り当てる","ラテン語（tribuere）"],
+  [["stitut"],"立てる、設ける","ラテン語（statuere）"],
+  [["serv"],"保つ、仕える","ラテン語（servare/servire）"],
+  [["press","prem"],"押す","ラテン語（premere）"],
+  [["sult","sil"],"跳ぶ","ラテン語（salire）"],
+  [["grat"],"感謝する、喜ばせる","ラテン語（gratus）"],
+  [["mnant"],"残っている","ラテン語（remanere「留まる」の縮約形）","この-mnantはremanere「留まる」がremnantという1語に縮約される過程で生まれた、この単語専用の形です。"],
+  [["prehend","prehens"],"つかむ、握る","ラテン語（prehendere）"],
+  [["fus","fut"],"注ぐ、溶かす","ラテン語（fundere/fusus）"],
+  [["nounce","nunci"],"告げる","ラテン語（nuntiare）"],
+  [["celer"],"速い","ラテン語（celer）"],
+  [["grav"],"重い","ラテン語（gravis）"],
+  [["cumul"],"積む","ラテン語（cumulare）"],
+  [["soci"],"仲間、社会","ラテン語（socius）"],
+  [["simil","sembl","simul"],"似ている、同時の","ラテン語（similis/simul）"],
+  [["dynam"],"力","ギリシャ語（dynamis）"],
+  [["onym"],"名前","ギリシャ語（onyma）"],
+  [["dorm"],"眠る","ラテン語（dormire）"],
+  [["here","hes"],"くっつく","ラテン語（haerere）"],
+  [["phas"],"現れる、示す","ギリシャ語（phainein）"],
+  [["culmin"],"頂点","ラテン語（culmen）"],
+  [["pat","pass"],"苦しむ、耐える","ラテン語（pati/passus）"],
+  [["stell"],"星","ラテン語（stella）"],
+  [["templ"],"神殿、見る場所","ラテン語（templum）"],
+  [["polit"],"市民、都市","ギリシャ語（polis）"],
+  [["crypt"],"隠れた","ギリシャ語（kryptos）"],
+  [["spond"],"誓う、応じる","ラテン語（spondere）"],
+  [["robor"],"強さ","ラテン語（robur）"],
+  [["civ","civil"],"市民","ラテン語（civis）"],
+  [["commun"],"共有の、共通の","ラテン語（communis）"],
+  [["pet"],"求める","ラテン語（petere）"],
+  [["bust"],"燃える","ラテン語（combustus）"],
+  [["brev"],"短い","ラテン語（brevis）"],
+  [["horr","hor"],"ぞっとする","ラテン語（horrere）"],
+  [["norm"],"規範、基準","ラテン語（norma）"],
+  [["cant","cent"],"歌う","ラテン語（canere）"],
+  [["mod"],"型、様式","ラテン語（modus）"],
+  [["apt"],"適した","ラテン語（aptus）"],
+  [["ept"],"得る","ラテン語（adipisci）"],
+  [["equ"],"等しい","ラテン語（aequus）"],
+  [["jac"],"横たわる","ラテン語（jacere「横たわる」）"],
+  [["journ"],"日","ラテン語（diurnus）"],
+  [["mon"],"警告する","ラテン語（monere）"],
+  [["orn"],"飾る","ラテン語（ornare）"],
+  [["firm"],"固い","ラテン語（firmus）"],
+  [["fix"],"固定する","ラテン語（figere）"],
+  [["agr"],"畑、農業","ラテン語（ager/agri-）"],
+  [["agon"],"争う、競う","ギリシャ語（agon）"],
+  [["capit"],"頭","ラテン語（caput）"],
+  [["centr"],"中心","ラテン語（centrum）"],
+  [["dens"],"濃い、密な","ラテン語（densus）"],
+  [["fig"],"形","ラテン語（figura）"],
+  [["sider"],"星を見る、よく考える","ラテン語（considerare）"],
+  [["tempt"],"試す","ラテン語（temptare）"],
+  [["clin"],"傾く","ラテン語（clinare）"],
+  [["fraud"],"欺く","ラテン語（fraus）"],
+  [["monstr"],"示す","ラテン語（monstrare）"],
+  [["pict"],"描く","ラテン語（pingere）"],
+  [["priv"],"個人の、奪う","ラテン語（privare）"],
+  [["riv"],"川","ラテン語（rivus）"],
+  [["scend"],"登る、降りる","ラテン語（scandere）"],
+  [["sign"],"印、しるし","ラテン語（signum）"],
+  [["sper"],"望む","ラテン語（sperare）"],
+  [["vot"],"誓う","ラテン語（vovere）"],
+  [["dexter","dextr"],"器用な、右手の","ラテン語（dexter）"],
+  [["gest"],"運ぶ、行う","ラテン語（gerere）"],
+  [["verg"],"傾く","ラテン語（vergere）"],
+  [["cosm"],"宇宙、秩序","ギリシャ語（kosmos）"],
+  [["decim"],"10分の1","ラテン語（decimus）"],
+  [["crep"],"音を立てる、割れる","ラテン語（crepare）"],
+  [["ton","tound","tonish"],"鳴り響く","ラテン語（tonare）"],
+  [["dol"],"苦しむ、痛む","ラテン語（dolere）"],
+  [["tend","tens"],"伸ばす","ラテン語（tendere）"],
+  [["not"],"印をつける、知らせる","ラテン語（notare）"],
+  [["ple","plet"],"満たす","ラテン語（plere）"],
+  [["olesc"],"成長する","ラテン語（adolescere）"],
+  [["ult"],"成長した","ラテン語（adultus）"],
+  [["aesthet"],"感覚","ギリシャ語（aisthesis）"],
+  [["fabl"],"話す、話せる","ラテン語（fari/fabilis）"],
+  [["mend"],"直す","ラテン語（emendare）"],
+  [["ami","amic"],"愛する","ラテン語（amare/amicus）"],
+  [["mnes"],"記憶","ギリシャ語（mnasthai）"],
+  [["morph"],"形","ギリシャ語（morphe）"],
+  [["ampl"],"大きい","ラテン語（amplus）"],
+  [["tom"],"切る","ギリシャ語（temnein）"],
+  [["nect"],"結ぶ","ラテン語（nectere）"],
+  [["nihil"],"無","ラテン語（nihil）"],
+  [["antiqu"],"古い","ラテン語（antiquus）"],
+  [["thes"],"置く","ギリシャ語（tithenai）"],
+  [["cert","certain"],"確かな","ラテン語（certus）"],
+  [["atroc"],"残忍な","ラテン語（atrox）"],
+  [["aug"],"増やす","ラテン語（augere）"],
+  [["auxili"],"助ける","ラテン語（auxilium）"],
+  [["avi"],"鳥","ラテン語（avis）"],
+  [["calam"],"災害","ラテン語（calamitas）"],
+  [["cand"],"輝く、白い","ラテン語（candere）"],
+  [["lys"],"緩める、分解する","ギリシャ語（lyein）"],
+  [["categor"],"分類する、告発する","ギリシャ語（kategorein）"],
+  [["celest"],"天の","ラテン語（caelestis）"],
+  [["cens"],"評価する、監視する","ラテン語（censere）"],
+  [["clandestin"],"秘密の","ラテン語（clam+intestinus）"],
+  [["pil"],"積む","ラテン語（pilare）"],
+  [["fisc"],"国庫","ラテン語（fiscus）"],
+  [["fam"],"評判、うわさ","ラテン語（fama）"],
+  [["somn"],"眠り","ラテン語（somnus）"],
+  [["integr"],"完全な、一体の","ラテン語（integer）"],
+  [["vad","vas"],"行く","ラテン語（vadere）"],
+  [["rig"],"水をやる","ラテン語（rigare）"],
+  [["lingu"],"言語、舌","ラテン語（lingua）"],
+  [["bol","blem"],"投げる","ギリシャ語（ballein）"],
+  [["milit"],"兵士","ラテン語（miles）"],
+  [["mut"],"変わる","ラテン語（mutare）"],
+  [["noct","nox"],"夜","ラテン語（nox）"],
+  [["nutri","nour"],"養う","ラテン語（nutrire）"],
+  [["trud","trus"],"押す","ラテン語（trudere）"],
+  [["pot"],"力","ラテン語（potens）"],
+  [["pac"],"平和にする、なだめる","ラテン語（pacare）"],
+  [["palp"],"触れる","ラテン語（palpare）"],
+  [["dox"],"意見","ギリシャ語（doxa）"],
+  [["mont","mount"],"山","ラテン語（mons）"],
+  [["pher","phor"],"運ぶ","ギリシャ語（pherein）"],
+  [["penetr"],"貫く","ラテン語（penetrare）"],
+  [["plaud","plaus","plod"],"拍手する、称賛する","ラテン語（plaudere）"],
+  [["fund","found","fundament"],"底、基礎","ラテン語（fundus）"],
+  [["long"],"長い","ラテン語（longus）"],
+  [["prud"],"賢明な","ラテン語（prudens）"],
+  [["quant"],"量","ラテン語（quantus）"],
+  [["rat"],"考える、計算する","ラテン語（ratus/reri）"],
+  [["concil"],"和解させる","ラテン語（conciliare）"],
+  [["juven"],"若い","ラテン語（juvenis）"],
+  [["lev"],"軽い、持ち上げる","ラテン語（levare）"],
+  [["linqu"],"残す、放棄する","ラテン語（linquere）"],
+  [["med"],"治す","ラテン語（mederi）"],
+  [["prov","prob"],"証明する、試す","ラテン語（probare）"],
+  [["sid","sed"],"座る","ラテン語（sedere）"],
+  [["solv","solut"],"緩める、解く","ラテン語（solvere）"],
+  [["son"],"音","ラテン語（sonus）"],
+  [["sanct"],"神聖な","ラテン語（sanctus）"],
+  [["satur"],"満たす","ラテン語（saturare）"],
+  [["scrutin"],"調べる","ラテン語（scrutari）"],
+  [["sen"],"年老いた","ラテン語（senex）"],
+  [["skept","scept"],"疑う、見る","ギリシャ語（skeptesthai）"],
+  [["spont"],"自ら","ラテン語（sponte）"],
+  [["spor"],"まく","ギリシャ語（speirein）"],
+  [["stagn"],"よどむ","ラテン語（stagnum）"],
+  [["stimul"],"刺激する","ラテン語（stimulus）"],
+  [["cumb"],"横たわる","ラテン語（cumbere）"],
+  [["plant"],"植える","ラテン語（plantare）"],
+  [["rog"],"尋ねる、提案する","ラテン語（rogare）"],
+  [["veil","vigil"],"見張る","ラテン語（vigilare）"],
+  [["vicar"],"代わりの","ラテン語（vicis）"],
+  [["kine","kinet"],"動く","ギリシャ語（kinein）"],
+  [["lun"],"月","ラテン語（luna）"],
+  [["merc"],"商品、報酬","ラテン語（merx）"],
+  [["obliqu"],"斜めの","ラテン語（obliquus）"],
+  [["optim"],"最善の","ラテン語（optimus）"],
+  [["loc"],"場所","ラテン語（locus）"],
+  [["lud","lus"],"遊ぶ、あざむく","ラテン語（ludere）"],
+  [["ambigu"],"あいまいな","ラテン語（ambiguus）"],
+  [["nex","nect"],"結ぶ","ラテン語（nectere）"],
+  [["quis","quer","quir"],"求める、尋ねる","ラテン語（quaerere）"],
+  [["clar"],"明らかにする","ラテン語（clarare/clarus）"],
+  [["terior"],"より悪い","ラテン語（deterior）"],
+  [["par"],"等しい","ラテン語（par）"],
+  [["vapor"],"蒸気","ラテン語（vapor）"],
+  [["oner"],"重荷","ラテン語（onus）"],
+  [["hilar"],"陽気な","ラテン語（hilaris）"],
+  [["ciner"],"灰","ラテン語（cinis）"],
+  [["oxy","ox"],"鋭い、酸性の","ギリシャ語（oxys）"],
+  [["cre","cern","cret","creet"],"区別する、ふるいわける","ラテン語（cernere/cretus）"],
+  [["dain","dign"],"価値する","ラテン語（dignari/dignus）"],
+  [["spers","spars"],"まく、散らす","ラテン語（spargere）"],
+  [["sip"],"まく、浪費する","ラテン語（dissipare）"],
+  [["stingu","stinct"],"消す、区別する","ラテン語（stinguere）"],
+  [["tort"],"ねじる","ラテン語（torquere）"],
+  [["div"],"神の","ラテン語（divus）"],
+  [["leip","lip","lips"],"残す、欠ける","ギリシャ語（leipein）"],
+  [["eco"],"家、環境","ギリシャ語（oikos）"],
+  [["system"],"組み立てられたもの","ギリシャ語（systema）"],
+  [["decor"],"ふさわしい、美しい","ラテン語（decor）"],
+  [["counter"],"反対に、出会う","ラテン語/フランス語"],
+  [["dors"],"背中","ラテン語（dorsum）"],
+  [["nerv"],"神経","ラテン語（nervus）"],
+  [["tail"],"切る","古フランス語（taillier）"],
+  [["pris","prise"],"取る","フランス語（prendre）"],
+  [["libr"],"天秤","ラテン語（libra）"],
+  [["radic"],"根","ラテン語（radix）"],
+  [["rod"],"かじる","ラテン語（rodere）"],
+  [["scal"],"はしご","ラテン語（scala）"],
+  [["essenc","essent"],"存在","ラテン語（esse）"],
+  [["estim","esteem"],"評価する","ラテン語（aestimare）"],
+  [["strang"],"見知らぬ","ラテン語（extraneus）"],
+  [["etern"],"永遠の","ラテン語（aeternus）"],
+  [["ethn"],"民族","ギリシャ語（ethnos）"],
+  [["volv"],"回転する","ラテン語（volvere）"],
+  [["cerp","cerpt"],"摘み取る","ラテン語（carpere）"],
+  [["empt"],"買う、取る","ラテン語（emere）"],
+  [["sert","ert"],"結ぶ、並べる","ラテン語（serere）"],
+  [["haust","haur"],"飲み干す","ラテン語（haurire）"],
+  [["od","hod"],"道","ギリシャ語（hodos）"],
+  [["pand"],"広げる","ラテン語（pandere）"],
+  [["pert"],"試みた","ラテン語（experiri）"],
+  [["tol"],"持ち上げる","ラテン語（tollere）"],
+  [["vag"],"さまよう","ラテン語（vagari）"],
+  [["extrem"],"最も外の","ラテン語（extremus）"],
+  [["uber"],"豊かな","ラテン語（uber）"],
+  [["fall"],"欺く","ラテン語（fallere）"],
+  [["fat"],"運命","ラテン語（fatum）"],
+  [["feder"],"同盟","ラテン語（foedus）"],
+  [["felic"],"幸福な","ラテン語（felix）"],
+  [["flagr"],"燃える","ラテン語（flagrare）"],
+  [["fluctu"],"波","ラテン語（fluctus）"],
+  [["frivol"],"取るに足らない","ラテン語（frivolus）"],
+  [["frug"],"実り、質素な","ラテン語（frux）"],
+  [["func","funct"],"果たす","ラテン語（fungi）"],
+  [["glaci"],"氷","ラテン語（glacies）"],
+  [["grand"],"大きい","ラテン語（grandis）"],
+  [["hier"],"神聖な","ギリシャ語（hieros）"],
+  [["hom"],"人","ラテン語（homo）"],
+  [["horiz","horizont"],"区切る、限る","ギリシャ語（horizein）"],
+  [["host"],"敵、よそ者","ラテン語（hostis）"],
+  [["imper"],"命令する","ラテン語（imperare）"],
+  [["pauvr","pover"],"貧しい","ラテン語（pauper）"],
+  [["pregn"],"妊娠した","ラテン語（praegnans）"],
+  [["crimin"],"罪","ラテン語（crimen）"],
+  [["furt"],"盗み","ラテン語（furtum）"],
+  [["fast"],"固い、しっかりした","古英語（fæst）"],
+  [["ignit"],"火をつける","ラテン語（ignire）"],
+  [["suad","suas"],"勧める","ラテン語（suadere）"],
+  [["oti"],"暇、余暇","ラテン語（otium）"],
+  [["derm"],"皮膚","ギリシャ語"],
+  [["dic","dict"],"言う","ラテン語"],
+  [["doc","doct","doctrin"],"教える","ラテン語"],
+  [["domin"],"支配する","ラテン語"],
+  [["duc","duct"],"導く","ラテン語"],
+  [["dur"],"続く、硬い","ラテン語"],
+  [["fac","fact","fic","fect","fy","feas"],"作る、行う","ラテン語"],
+  [["fer"],"運ぶ","ラテン語"],
+  [["fid"],"信頼","ラテン語"],
+  [["fin"],"終わり、限界","ラテン語"],
+  [["flect","flex"],"曲げる","ラテン語"],
+  [["flu","flux"],"流れる","ラテン語"],
+  [["form"],"形","ラテン語"],
+  [["fract","frag"],"壊す","ラテン語"],
+  [["gam"],"結婚","ギリシャ語"],
+  [["gen","gend"],"生まれる、種類","ギリシャ語/ラテン語"],
+  [["geo"],"地球、土地","ギリシャ語"],
+  [["grad","gress"],"歩く、進む","ラテン語"],
+  [["graph","gram"],"書く、描く","ギリシャ語"],
+  [["gyn"],"女性","ギリシャ語"],
+  [["helio"],"太陽","ギリシャ語"],
+  [["hydro"],"水","ギリシャ語"],
+  [["ject"],"投げる","ラテン語"],
+  [["jud","jur","jus"],"法、正義","ラテン語"],
+  [["junct","join","jug"],"つなぐ、結びつける","ラテン語"],
+  [["labor"],"働く","ラテン語"],
+  [["leg","lect","lig"],"読む、選ぶ、集める","ラテン語"],
+  [["liber"],"自由","ラテン語"],
+  [["liter"],"文字","ラテン語"],
+  [["log","logu"],"言葉、学問","ギリシャ語"],
+  [["loqu","locut"],"話す","ラテン語"],
+  [["luc","lum","lus"],"光","ラテン語"],
+  [["magn"],"大きい","ラテン語"],
+  [["man","manu","main"],"手","ラテン語"],
+  [["mar"],"海","ラテン語"],
+  [["mater","matr"],"母","ラテン語"],
+  [["medi"],"中間","ラテン語"],
+  [["memor"],"記憶","ラテン語"],
+  [["meter","metr"],"測る","ギリシャ語"],
+  [["migra","migrat"],"移動する","ラテン語"],
+  [["min"],"小さい","ラテン語"],
+  [["mit","miss"],"送る","ラテン語"],
+  [["mir"],"驚く、見つめる","ラテン語（mirari）"],
+  [["mob","mot","mov"],"動く","ラテン語"],
+  [["mort"],"死","ラテン語"],
+  [["nat"],"生まれる","ラテン語"],
+  [["nation"],"国民、国家","ラテン語"],
+  [["nav","navig"],"船","ラテン語"],
+  [["neur"],"神経","ギリシャ語"],
+  [["nom","nym","nomin"],"名前","ギリシャ語/ラテン語"],
+  [["nov"],"新しい","ラテン語"],
+  [["numer"],"数","ラテン語"],
+  [["ocul"],"目","ラテン語"],
+  [["opt"],"見る","ギリシャ語"],
+  [["ortho"],"正しい","ギリシャ語"],
+  [["part","pars"],"部分","ラテン語"],
+  [["pater","patr"],"父","ラテン語"],
+  [["path"],"感情、病気","ギリシャ語"],
+  [["ped"],"足","ラテン語"],
+  [["pod"],"足","ギリシャ語"],
+  [["pel","puls"],"押す","ラテン語"],
+  [["pend","pens"],"吊るす、支払う","ラテン語"],
+  [["phil"],"愛する","ギリシャ語"],
+  [["phob"],"恐れ","ギリシャ語"],
+  [["phon"],"音","ギリシャ語"],
+  [["photo"],"光","ギリシャ語"],
+  [["phys"],"自然、身体","ギリシャ語"],
+  [["plic","plex","ply"],"折る、重ねる","ラテン語"],
+  [["pon","pos","posit"],"置く","ラテン語"],
+  [["port"],"運ぶ","ラテン語"],
+  [["psych"],"心、精神","ギリシャ語"],
+  [["pyr"],"火","ギリシャ語"],
+  [["quer","quest","quir"],"尋ねる、求める","ラテン語"],
+  [["reg","rect","regul"],"まっすぐ、支配する","ラテン語"],
+  [["rupt"],"壊す","ラテン語"],
+  [["sci"],"知る","ラテン語"],
+  [["scop"],"見る、観察する","ギリシャ語"],
+  [["scrib","script"],"書く","ラテン語"],
+  [["sect","seg"],"切る","ラテン語"],
+  [["sent","sens"],"感じる","ラテン語"],
+  [["sequ","secut"],"続く、従う","ラテン語"],
+  [["sol"],"太陽、単独","ラテン語"],
+  [["solv","solu"],"解く、溶かす","ラテン語"],
+  [["soph"],"知恵","ギリシャ語"],
+  [["spect","spec","spic","spis"],"見る","ラテン語"],
+  [["spher"],"球","ギリシャ語"],
+  [["spir"],"息をする","ラテン語"],
+  [["stat","sist","stanc","stin","stor","staur"],"立つ","ラテン語"],
+  [["struct","stru"],"建てる","ラテン語"],
+  [["tact","tang","tig"],"触れる","ラテン語"],
+  [["tain","ten","tent","tin"],"保つ","ラテン語"],
+  [["tempor","temp"],"時間","ラテン語"],
+  [["terr"],"土地、地球","ラテン語"],
+  [["test"],"証明する","ラテン語"],
+  [["theo"],"神","ギリシャ語"],
+  [["theor"],"見る、考察する","ギリシャ語（theorein）"],
+  [["therm"],"熱","ギリシャ語"],
+  [["tract"],"引く","ラテン語"],
+  [["urb"],"都市","ラテン語"],
+  [["vac"],"空の","ラテン語"],
+  [["val"],"価値、強い","ラテン語"],
+  [["ven","vent"],"来る","ラテン語"],
+  [["ver"],"真実","ラテン語"],
+  [["verb"],"言葉","ラテン語"],
+  [["vert","vers"],"回す、向きを変える","ラテン語"],
+  [["vid","vis"],"見る","ラテン語"],
+  [["vinc","vict"],"勝つ、征服する","ラテン語"],
+  [["viv","vit"],"生きる","ラテン語"],
+  [["voc","vok","vok"],"声、呼ぶ","ラテン語"],
+  [["vol"],"意思、望む","ラテン語"],
+  [["zo"],"動物","ギリシャ語"],
+  [["stow"],"置く、しまう","古英語"],
+  [["stand"],"立つ","古英語"],
+  [["come"],"来る","古英語"],
+  [["give"],"与える","古英語"],
+  [["hold"],"保つ、つかむ","古英語"],
+  [["take"],"取る","古英語/古ノルド語"],
+  [["set"],"置く","古英語"],
+  [["look"],"見る","古英語"],
+  [["throw"],"投げる","古英語"],
+  [["draw"],"引く","古英語"],
+  [["grow"],"育つ、成長する","古英語"],
+  [["cast"],"投げる","古ノルド語"],
+  [["head"],"頭","古英語"],
+  [["see"],"見る","古英語"]
+];
+
+const SUFFIXES_RAW = [
+  [["able","ible"],"〜できる（形容詞化）","ラテン語"],
+  [["age"],"行為・状態（名詞化）","ラテン語/フランス語"],
+  [["al","ial"],"〜に関する（形容詞化）","ラテン語"],
+  [["ac"],"〜に関する","ギリシャ語"],
+  [["ure"],"こと、状態","ラテン語"],
+  [["us"],"〜のもの","ラテン語"],
+  [["ia"],"状態、病気などを表す","ギリシャ語"],
+  [["it"],"〜された（過去分詞由来）","ラテン語"],
+  [["id"],"〜の性質を持つ","ラテン語"],
+  [["ide"],"化合物を表す","ギリシャ語"],
+  [["escent"],"〜し始める","ラテン語"],
+  [["ose"],"〜に富んだ","ラテン語"],
+  [["acle","cle","icle"],"〜するもの・道具（小さいものを表す）","ラテン語（-culum）"],
+  [["ar"],"〜に関する（形容詞化）","ラテン語"],
+  [["an","ian"],"〜の人、〜に属する","ラテン語"],
+  [["ance","ence"],"状態・性質（名詞化）","ラテン語"],
+  [["ant","ent"],"〜する人、〜の性質を持つ","ラテン語"],
+  [["ary","ory"],"〜に関する場所・もの","ラテン語"],
+  [["ate"],"〜にする、〜の状態にする","ラテン語"],
+  [["ation","ition","tion","sion","ion"],"こと・状態（名詞化）","ラテン語"],
+  [["cy"],"状態・地位（名詞化）","ギリシャ語/ラテン語"],
+  [["dom"],"状態・領域","ゲルマン語"],
+  [["ed"],"過去（動詞の活用）","ゲルマン語"],
+  [["e"],"語尾の黙字（発音しない綴り字上のe）","（英語のつづり字の慣習）"],
+  [["ee"],"〜される人","フランス語/ラテン語"],
+  [["eer","ier"],"〜する人・職業","フランス語"],
+  [["en"],"〜にする、〜製の","ゲルマン語"],
+  [["er","or"],"〜する人・もの","ゲルマン語/ラテン語"],
+  [["ery","ry"],"場所・技術・状態","フランス語"],
+  [["ese"],"〜の、〜語","ラテン語"],
+  [["esque"],"〜風の、〜のような","フランス語"],
+  [["ess"],"（女性形）","ギリシャ語"],
+  [["est"],"最上級","ゲルマン語"],
+  [["ful"],"〜に満ちた","ゲルマン語"],
+  [["ify","fy"],"〜にする","ラテン語"],
+  [["hood"],"状態・期間","ゲルマン語"],
+  [["ic","ical"],"〜に関する（形容詞化）","ギリシャ語"],
+  [["ine"],"場所・慣行・性質を表す","ラテン語（-ina）"],
+  [["um"],"〜のもの・こと（中性名詞語尾）","ラテン語"],
+  [["ute"],"〜にする、〜の状態にする","ラテン語"],
+  [["ing"],"進行・動名詞","ゲルマン語"],
+  [["ish"],"〜のような","ゲルマン語"],
+  [["ism"],"主義・状態","ギリシャ語"],
+  [["ist"],"〜する人、〜主義者","ギリシャ語"],
+  [["ity","ty"],"状態・性質（名詞化）","ラテン語"],
+  [["ive","ative","itive"],"〜の性質を持つ","ラテン語"],
+  [["ize","ise"],"〜にする、〜化する","ギリシャ語"],
+  [["less"],"〜がない","ゲルマン語"],
+  [["let"],"小さい","フランス語"],
+  [["le"],"〜を繰り返す、〜し続ける（反復・持続を表す）","ゲルマン語","この-leはラテン語・ギリシャ語の接尾辞ほど規則的ではなく、sparkle・wrinkle・crackleのような一部のゲルマン語系の動詞にゆるく見られるパターンです。"],
+  [["like"],"〜のような","ゲルマン語"],
+  [["logy","ology"],"〜学、学問","ギリシャ語"],
+  [["ly"],"〜のように、〜的に","ゲルマン語"],
+  [["ment"],"結果・行為・状態（名詞化）","ラテン語"],
+  [["ness"],"状態・性質（名詞化）","ゲルマン語"],
+  [["ous"],"〜の性質を持つ","ラテン語"],
+  [["ship"],"状態・地位","ゲルマン語"],
+  [["some"],"〜の傾向がある","ゲルマン語"],
+  [["th"],"状態（名詞化）","ゲルマン語"],
+  [["tude"],"状態（名詞化）","ラテン語"],
+  [["ward"],"〜の方向へ","ゲルマン語"],
+  [["wise"],"〜の方法で","ゲルマン語"],
+  [["y"],"〜のような、状態","ゲルマン語/ラテン語"]
+];
+
+function buildEntries(raw, type){
+  return raw.map(([forms,meaning,origin,note])=>({forms,meaning,origin,note,type}));
+}
+const PREFIX_ENTRIES = buildEntries(PREFIXES_RAW,'prefix');
+const ROOT_ENTRIES = buildEntries(ROOTS_RAW,'root');
+const SUFFIX_ENTRIES = buildEntries(SUFFIXES_RAW,'suffix');
+const ALL_ENTRIES = [...PREFIX_ENTRIES, ...ROOT_ENTRIES, ...SUFFIX_ENTRIES];
+
+/* ---------- マッチングヘルパー ---------- */
+function candidatesFor(sub, strict){
+  if(strict) return [sub];
+  const set = new Set([sub]);
+  set.add(sub+'e');                  // 黙字のeが落ちたケース (e.g. "clos" -> "close")
+  if(sub.length>2 && sub[sub.length-1]===sub[sub.length-2]){
+    set.add(sub.slice(0,-1));        // 子音の重複 (e.g. "sett" -> "set")
+  }
+  return [...set];
+}
+// 語根専用の候補生成: 短い綴りに対する「黙字のe付加」は行わない。
+// これを一般のcandidatesForと共有すると、"th"(2文字)が"the"(語根)に
+// 化けて "other" "together" "weather" のような無関係な単語にまで
+// マッチしてしまう（子音重複の圧縮は語根でも有用なので残す）。
+function candidatesForRoot(sub){
+  const set = new Set([sub]);
+  if(sub.length>=3) set.add(sub+'e');
+  if(sub.length>2 && sub[sub.length-1]===sub[sub.length-2]){
+    set.add(sub.slice(0,-1));
+  }
+  return [...set];
+}
+function findMatches(sub, list, strict, isRootLike){
+  const cands = (!strict && isRootLike) ? candidatesForRoot(sub) : candidatesFor(sub, strict);
+  for(const cand of cands){
+    const m = list.filter(e=>e.forms.includes(cand));
+    if(m.length) return m;
+  }
+  return [];
+}
+
+/* ---------- 単語全体を一括で最適分割するDP ----------
+   以前は「接頭辞を貪欲に剥がす → 接尾辞を貪欲に剥がす → 残った真ん中だけ
+   DPで分割する」という3段階の処理だった。この方式だと、たとえば
+   "addiction" で "di" が（本来は語根 "dict" の一部なのに）先に接頭辞
+   として食われてしまい、後戻りできず "ct" が迷子になる、という構造的な
+   誤りが起きていた（各段階が局所的にしか判断できないため）。
+   ここでは単語全体を1回のDPで見て、「候補となる全ての切れ目」の中から
+   合計コストが最小になる分割を選ぶ。これにより "ad-di-(不明)-ion" より
+   "ad-dict-ion" の方が（既知の断片が多く合計コストが低いため）自然に
+   優先されるようになる。 */
+function decomposeWord(word, rootEntries, suffixEntries){
+  rootEntries = rootEntries || ROOT_ENTRIES;
+  suffixEntries = suffixEntries || SUFFIX_ENTRIES;
+  const n = word.length;
+  if(n===0) return [];
+  // 3状態DP:
+  //   P = まだ接頭辞の連続だけ（語根に一度も到達していない）
+  //   N = 接頭辞ゾーンは抜けたが、まだ語根が見つかっていない（不明・連結母音・接尾辞のみ）
+  //   R = すでに語根に到達済み
+  // 最終的には「語根を含む分割」を必ず優先する（P止まり・N止まりのまま
+  // 単語全体が終わってしまうのは、たとえコスト計算上は安く見えても
+  // 言語学的にはほぼ常に誤り＝語根が一つもない単語は実在しないため）。
+  const dp = new Array(n+1).fill(null).map(()=>({P:null,N:null,R:null}));
+  dp[0].P = {cost:0, prev:-1, prevState:null, piece:null, entries:null, kind:null};
+
+  for(let i=0;i<n;i++){
+    for(const state of ['P','N','R']){
+      const cur = dp[i][state];
+      if(!cur) continue;
+      const maxLen = Math.min(11, n-i);
+      for(let len=maxLen; len>=1; len--){
+        const j = i+len;
+        const sub = word.slice(i,j);
+        const cost = cur.cost + 1 - len*0.02;
+
+        // 接頭辞は「まだ接頭辞しか出ていない先頭からの連続部分」(P状態)でのみ許可。
+        // "al"（"-al"接尾辞であると同時にad-の同化形でもある）等が単語の
+        // 途中・末尾で接頭辞として誤って選ばれるのを防ぐ。
+        if(state==='P'){
+          const pMatches = findMatches(sub, PREFIX_ENTRIES, true);
+          if(pMatches.length && (!dp[j].P || cost < dp[j].P.cost)){
+            dp[j].P = {cost, prev:i, prevState:state, piece:sub, entries:pMatches, kind:'prefix'};
+          }
+        }
+        // 語根: どの状態からでも遷移でき、着地状態は必ずR
+        const rMatches = findMatches(sub, rootEntries, false, true);
+        if(rMatches.length && (!dp[j].R || cost < dp[j].R.cost)){
+          dp[j].R = {cost, prev:i, prevState:state, piece:sub, entries:rMatches, kind:'root'};
+        }
+        // 接尾辞: 既にRならRのまま、そうでなければN
+        const sMatches = findMatches(sub, suffixEntries);
+        if(sMatches.length){
+          const ns = state==='R' ? 'R' : 'N';
+          if(!dp[j][ns] || cost < dp[j][ns].cost){
+            dp[j][ns] = {cost, prev:i, prevState:state, piece:sub, entries:sMatches, kind:'suffix'};
+          }
+        }
+      }
+      // 連結母音（連結インターフィックス）1文字: bio-o-logy のようなケース
+      if(word[i]==='o' || word[i]==='i' || word[i]==='u'){
+        const j = i+1;
+        const cost = cur.cost + 0.3;
+        const ns = state==='R' ? 'R' : 'N';
+        if(!dp[j][ns] || cost < dp[j][ns].cost){
+          dp[j][ns] = {cost, prev:i, prevState:state, piece:word[i], entries:null, kind:'connector'};
+        }
+      }
+      // 不明な1文字（辞書に一致しない場合の最終手段、コスト高）
+      {
+        const j = i+1;
+        const cost = cur.cost + 40;
+        const ns = state==='R' ? 'R' : 'N';
+        if(!dp[j][ns] || cost < dp[j][ns].cost){
+          dp[j][ns] = {cost, prev:i, prevState:state, piece:word[i], entries:null, kind:'unknown'};
+        }
+      }
+    }
+  }
+
+  // 単語末尾での状態選択: 語根を含む分割(R)があれば必ずそれを優先する。
+  // なければN、それもなければP（＝語根が一つも見つからなかった場合の最終手段）。
+  let endState;
+  if(dp[n].R){
+    endState = 'R';
+  } else if(dp[n].N && dp[n].P){
+    endState = dp[n].N.cost <= dp[n].P.cost ? 'N' : 'P';
+  } else {
+    endState = dp[n].N ? 'N' : 'P';
+  }
+
+  // 復元
+  const seq = [];
+  let cur = n, state = endState;
+  while(cur>0){
+    const node = dp[cur][state];
+    seq.unshift(node);
+    state = node.prevState;
+    cur = node.prev;
+  }
+
+  // 隣接する不明文字・連結母音を結合
+  const merged = [];
+  for(const node of seq){
+    const last = merged[merged.length-1];
+    if(last && last.kind===node.kind && (node.kind==='unknown' || node.kind==='connector')){
+      last.piece += node.piece;
+    } else {
+      merged.push({piece:node.piece, entries:node.entries, kind:node.kind});
+    }
+  }
+  return merged;
+}
+
+/* ---------- メイン分解関数 ---------- */
+/* ---------- 単語ごとの補足注釈 ----------
+   接頭辞・語根・接尾辞の辞書上の意味は単語をまたいで共有されているため、
+   「この単語のこの断片だけは、辞書の代表的な意味とは少しニュアンスが違う」
+   という注釈は、辞書エントリーではなく単語単位でここに登録する。
+   （例: ex- は普段は「外へ」だが、exacerbateでは強調の意味合いが強い） */
+const WORD_NOTES = {
+  'exacerbate': {
+    'ex': 'ここでの ex- は「外へ」という原義よりも、「徹底的に、完全に」という強調の意味合いで使われています。'
+  },
+  'caveat': {
+    'eat': 'これは英語の接尾辞ではありません。caveatはラテン語の動詞 cavere（用心する）の三人称単数接続法「彼は用心せよ」がそのまま英語に取り込まれた1語で、veto（我は禁ずる）やmemento（覚えておけ）と同じく、活用形ごと丸ごと借用された化石的な単語です。'
+  }
+};
+
+/* ---------- 単語ごとの語根除外 ----------
+   2つの語根候補が偶然コスト計算上ちょうど同点になり、語源的に正しくない
+   方が選ばれてしまうことがある。"theory"はその例で、"theo"（神）と
+   "theor"（見る、考察する）がどちらも数値上は同じコストになってしまうが、
+   theoryの語源はtheos（神）ではなくthea（見ること）+horan（見る）に遡る
+   theoria（観想）で、"theo"はここでは誤り。該当語根をこの単語の分解から
+   除外することで、正しい方に確定させる。 */
+const WORD_ROOT_EXCLUDE = {
+  'theory': ['theo'],
+  'theorem': ['theo'],
+  'theoretical': ['theo'],
+  'theorize': ['theo'],
+  'discipline': ['lign','line'],
+  'disciplinary': ['lign','line'],
+  'disciplined': ['lign','line'],
+  'disciplines': ['lign','line'],
+  'disciplining': ['lign','line'],
+  'century': ['cant'],
+  'centuries': ['cant'],
+  'percent': ['cant'],
+  'percentage': ['cant']
+};
+
+/* ---------- 単語ごとの接尾辞除外 ----------
+   語根と同様、接尾辞も短い形（"e","at"など）が偶然組み合わさって、
+   本来は分解不能な化石的な語尾（例: caveatの"-eat"はラテン語の
+   活用語尾で、英語の接尾辞ではない）を誤って埋めてしまうことがある。
+   該当の接尾辞候補を除外し、正直に「不明」として表示させる。 */
+const WORD_SUFFIX_EXCLUDE = {
+  'caveat': ['ee','ate']
+};
+
+function decompose(rawWord){
+  const word = rawWord.toLowerCase().replace(/[^a-z]/g,'');
+  if(!word) return null;
+  const excludedRoots = WORD_ROOT_EXCLUDE[word];
+  const rootEntries = excludedRoots
+    ? ROOT_ENTRIES.filter(e=>!e.forms.some(f=>excludedRoots.includes(f)))
+    : ROOT_ENTRIES;
+  const excludedSuffixes = WORD_SUFFIX_EXCLUDE[word];
+  const suffixEntries = excludedSuffixes
+    ? SUFFIX_ENTRIES.filter(e=>!e.forms.some(f=>excludedSuffixes.includes(f)))
+    : SUFFIX_ENTRIES;
+  const result = decomposeWord(word, rootEntries, suffixEntries);
+  const notes = WORD_NOTES[word];
+  if(notes){
+    result.forEach(p=>{
+      if(notes[p.piece]) p.wordNote = notes[p.piece];
+    });
+  }
+  return result;
+}
+
+/* ---------- 描画 ---------- */
+const typeLabels = {prefix:'接頭辞',root:'語根',suffix:'接尾辞',unknown:'不明',connector:'連結'};
+
+// 「不明」断片が複数ある場合に見分けやすいよう、順番に色を割り当てるパレット
+const UNKNOWN_PALETTE = [
+  {main:'#B8860B', bg:'#F3EAD4'}, // オーカー
+  {main:'#6B5B95', bg:'#E9E4F2'}, // モーブ
+  {main:'#4C7A8C', bg:'#DFEBEE'}, // スレートブルー
+  {main:'#8C5B4C', bg:'#F0E2DC'}, // クレイ
+  {main:'#5C7A3E', bg:'#E6EDDD'}, // オリーブ
+  {main:'#A6486B', bg:'#F3DEE6'}  // ローズ
+];
+
+function render(word){
+  const resultEl = document.getElementById('result');
+  const pieces = decompose(word);
+
+  if(!pieces || pieces.length===0){
+    resultEl.innerHTML = '<div class="empty-state">英字を含む単語を入力してください。</div>';
+    return;
+  }
+
+  let wordHtml = '<div class="word-display">';
+  let stitchHtml = '<div class="stitch">';
+  let cardsHtml = '<div class="cards">';
+  let unknownCount = 0;
+
+  pieces.forEach(p=>{
+    const kind = p.kind;
+    let colorStyle = '';
+    let dotStyle = '';
+    let badgeStyle = '';
+
+    if(kind==='unknown'){
+      const c = UNKNOWN_PALETTE[unknownCount % UNKNOWN_PALETTE.length];
+      unknownCount++;
+      colorStyle = ` style="border-color:${c.main};opacity:1;"`;
+      dotStyle = ` style="background:${c.main};"`;
+      badgeStyle = ` style="background:#ffffff;color:${c.main};border:1px solid ${c.main};"`;
+    }
+
+    wordHtml += `<span class="piece ${kind}"${colorStyle}>${escapeHtml(p.piece)}</span>`;
+    stitchHtml += `<div class="stitch-col ${kind}" style="flex:0 0 ${Math.max(p.piece.length*0.62,1)}em;"><div class="stitch-line"></div><div class="stitch-dot"${dotStyle}></div></div>`;
+
+    if(kind==='connector'){
+      cardsHtml += `<div class="card unknown">
+        <div class="frag">${escapeHtml(p.piece)}<span class="type-badge">連結母音</span></div>
+        <div class="meaning">要素同士をつなぐ連結母音（インターフィックス）です。</div>
+        <div class="origin">ギリシャ語由来の複合語に多い形式</div>
+      </div>`;
+    } else if(kind==='unknown'){
+      const c = UNKNOWN_PALETTE[(unknownCount-1) % UNKNOWN_PALETTE.length];
+      cardsHtml += `<div class="card unknown" style="border-left-color:${c.main};background:${c.bg};">
+        <div class="frag">${escapeHtml(p.piece)}<span class="type-badge"${badgeStyle}>不明</span></div>
+        <div class="meaning">辞書に一致する接頭辞・語根・接尾辞が見つかりませんでした。</div>
+        <div class="origin">—</div>
+        ${p.wordNote?`<div class="caveat">※ ${escapeHtml(p.wordNote)}</div>`:''}
+      </div>`;
+    } else {
+      const entries = p.entries;
+      const multi = entries.length>1;
+      const meaningsHtml = entries.map((e,i)=>`
+        <div class="meaning-group">
+          ${multi?`<div class="meaning-idx">語源${i+1}</div>`:''}
+          <div class="meaning">${escapeHtml(e.meaning)}</div>
+          <div class="origin">${escapeHtml(e.origin)}</div>
+          ${e.note?`<div class="caveat">※ ${escapeHtml(e.note)}</div>`:''}
+        </div>`).join('');
+      cardsHtml += `<div class="card ${kind}">
+        <div class="frag">${escapeHtml(p.piece)}<span class="type-badge">${typeLabels[kind]}</span></div>
+        ${meaningsHtml}
+        ${p.wordNote?`<div class="caveat">※ ${escapeHtml(p.wordNote)}</div>`:''}
+      </div>`;
+    }
+  });
+
+  wordHtml += '</div>';
+  stitchHtml += '</div>';
+  cardsHtml += '</div>';
+
+  resultEl.innerHTML = wordHtml + stitchHtml + cardsHtml;
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- イベント ---------- */
+const input = document.getElementById('wordInput');
+document.getElementById('splitBtn').addEventListener('click', ()=>render(input.value));
+input.addEventListener('keydown', e=>{ if(e.key==='Enter') render(input.value); });
+document.querySelectorAll('.ex-chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    input.value = chip.dataset.w;
+    render(chip.dataset.w);
+  });
+});
+
+// 初期表示
+render('international');
+</script>
+</body>
+</html>
