@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention と FFN の違い — トイ・トランスフォーマー実験室</title>
+<style>
+
+  :root{
+    --paper: #faf7f0;
+    --paper-line: rgba(31,41,55,0.08);
+    --ink: #1f2937;
+    --ink-soft: #5b6472;
+    --dog: #b5651d;
+    --dog-soft: #f1dcc2;
+    --cat: #1f6f6f;
+    --cat-soft: #d9ecec;
+    --ref: #6b3fa0;
+    --ref-soft: #e9def5;
+    --card: #ffffff;
+    --card-border: rgba(31,41,55,0.12);
+    --shadow: 0 1px 0 rgba(31,41,55,0.04);
+    --dim-off: rgba(31,41,55,0.28);
+    --att-badge: #3454a6;
+    --att-badge-soft: #dde4f5;
+    --ffn-badge: #c1682f;
+    --ffn-badge-soft: #f5e2d3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1c1a17;
+      --paper-line: rgba(250,247,240,0.06);
+      --ink: #f2ede2;
+      --ink-soft: #b7ae9e;
+      --dog: #e0975a;
+      --dog-soft: #3a2c1c;
+      --cat: #5fbcbc;
+      --cat-soft: #123232;
+      --ref: #b28ee0;
+      --ref-soft: #2c2138;
+      --card: #262320;
+      --card-border: rgba(250,247,240,0.10);
+      --shadow: 0 1px 0 rgba(0,0,0,0.2);
+      --dim-off: rgba(250,247,240,0.22);
+      --att-badge: #8fa8e6;
+      --att-badge-soft: #232c42;
+      --ffn-badge: #e0a06a;
+      --ffn-badge-soft: #3a2a1c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1c1a17;
+    --paper-line: rgba(250,247,240,0.06);
+    --ink: #f2ede2;
+    --ink-soft: #b7ae9e;
+    --dog: #e0975a;
+    --dog-soft: #3a2c1c;
+    --cat: #5fbcbc;
+    --cat-soft: #123232;
+    --ref: #b28ee0;
+    --ref-soft: #2c2138;
+    --card: #262320;
+    --card-border: rgba(250,247,240,0.10);
+    --shadow: 0 1px 0 rgba(0,0,0,0.2);
+    --dim-off: rgba(250,247,240,0.22);
+    --att-badge: #8fa8e6;
+    --att-badge-soft: #232c42;
+    --ffn-badge: #e0a06a;
+    --ffn-badge-soft: #3a2a1c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      linear-gradient(var(--paper-line) 1px, transparent 1px) 0 0/100% 28px,
+      var(--paper);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 20px 96px;
+  }
+
+  h1 {
+    font-family: "Hiragino Mincho ProN","Yu Mincho","Georgia",serif;
+    font-size: clamp(24px, 4.5vw, 32px);
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+  }
+  .kicker {
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin: 0 0 18px;
+  }
+  p.lead {
+    color: var(--ink-soft);
+    max-width: 64ch;
+    margin: 0 0 36px;
+  }
+
+  .sentence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 2px;
+    padding: 20px 22px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+    font-size: 18px;
+  }
+  .tok {
+    padding: 3px 2px;
+    border-radius: 4px;
+    white-space: pre;
+  }
+  .tok.dog { background: var(--dog-soft); color: var(--dog); font-weight: 700; }
+  .tok.cat { background: var(--cat-soft); color: var(--cat); font-weight: 700; }
+  .tok.ref { background: var(--ref-soft); color: var(--ref); font-weight: 700; }
+
+  section {
+    margin-bottom: 44px;
+  }
+  h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  h2 .step-no {
+    font-family: "SF Mono","Menlo",Consolas,monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .sec-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+  .sec-tag.att { background: var(--att-badge-soft); color: var(--att-badge); }
+  .sec-tag.ffn { background: var(--ffn-badge-soft); color: var(--ffn-badge); }
+  .note {
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    margin: 0 0 16px;
+    max-width: 64ch;
+  }
+
+  .controls {
+    display: grid;
+    gap: 22px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .control-row label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .control-row .val {
+    font-family: "SF Mono","Menlo",Consolas,monospace;
+    color: var(--ink-soft);
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--ref);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toggle-row .label {
+    font-size: 14px;
+  }
+  button.swap {
+    border: 1px solid var(--card-border);
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 13.5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.swap:hover { border-color: var(--ref); color: var(--ref); }
+  button.swap:focus-visible { outline: 2px solid var(--ref); outline-offset: 2px; }
+
+  .diagram-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 8px 8px 20px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  svg { display: block; width: 100%; height: auto; min-width: 480px; }
+  .node-box { fill: var(--card); stroke-width: 1.6; }
+  .node-label { font-size: 17px; font-weight: 700; font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; }
+  .node-sub { font-size: 10.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .weight-label { font-size: 13px; font-weight: 700; font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-label { font-size: 13.5px; font-weight: 700; font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; }
+  .pipe-label.sm { font-size: 11px; }
+  .pipe-sub { font-size: 9.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-val { font-size: 10.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-stage { font-size: 10px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+
+  .vec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+  }
+  .vec-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px 16px 14px;
+    box-shadow: var(--shadow);
+  }
+  .vec-card .who {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink:0; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; }
+  .bar-row.off { opacity: 0.4; }
+  .bar-row .bar-label { width: 66px; color: var(--ink-soft); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--paper-line); border-radius: 5px; position: relative; overflow: hidden; }
+  .bar-fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+  .bar-num { width: 38px; text-align: right; font-family: "SF Mono","Menlo",Consolas,monospace; color: var(--ink-soft); flex-shrink: 0; }
+  .grp-label {
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-transform: none;
+    margin: 10px 0 5px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--card-border);
+  }
+  .grp-label:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+
+  .score-line {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--card-border);
+    font-family: "SF Mono","Menlo",Consolas,monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  .result-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .softmax-bar {
+    display: flex;
+    height: 34px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 14px 0 10px;
+    border: 1px solid var(--card-border);
+  }
+  .softmax-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    transition: width 0.15s ease;
+    font-family: "SF Mono","Menlo",Consolas,monospace;
+  }
+  .verdict {
+    font-size: 15.5px;
+    margin-top: 14px;
+  }
+  .verdict b { color: var(--ref); }
+
+  .steps {
+    display: grid;
+    gap: 18px;
+  }
+  .step-item {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .step-item .t { font-weight: 700; font-size: 14px; margin-bottom: 5px; }
+  .step-item .d { font-size: 14px; color: var(--ink-soft); }
+
+  footer {
+    color: var(--ink-soft);
+    font-size: 13px;
+    border-top: 1px solid var(--card-border);
+    padding-top: 20px;
+    margin-top: 56px;
+  }
+
+  @media (max-width: 480px) {
+    .wrap { padding: 32px 14px 72px; }
+    .sentence { font-size: 16px; padding: 16px; }
+  }
+
+
+  :root{
+    --paper: #faf7f0;
+    --paper-line: rgba(31,41,55,0.08);
+    --ink: #1f2937;
+    --ink-soft: #5b6472;
+    --fr: #2f5fa8;
+    --fr-soft: #dbe6f5;
+    --jp: #b23a3a;
+    --jp-soft: #f3dcdc;
+    --de: #b8860b;
+    --de-soft: #f1e6c8;
+    --ref: #6b3fa0;
+    --ref-soft: #e9def5;
+    --card: #ffffff;
+    --card-border: rgba(31,41,55,0.12);
+    --shadow: 0 1px 0 rgba(31,41,55,0.04);
+    --dim-off: rgba(31,41,55,0.28);
+    --att-badge: #3454a6;
+    --att-badge-soft: #dde4f5;
+    --ffn-badge: #c1682f;
+    --ffn-badge-soft: #f5e2d3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1c1a17;
+      --paper-line: rgba(250,247,240,0.06);
+      --ink: #f2ede2;
+      --ink-soft: #b7ae9e;
+      --fr: #7ea6e0;
+      --fr-soft: #1f2c3f;
+      --jp: #e08a8a;
+      --jp-soft: #3a2222;
+      --de: #e0c168;
+      --de-soft: #3a3018;
+      --ref: #b28ee0;
+      --ref-soft: #2c2138;
+      --card: #262320;
+      --card-border: rgba(250,247,240,0.10);
+      --shadow: 0 1px 0 rgba(0,0,0,0.2);
+      --dim-off: rgba(250,247,240,0.22);
+      --att-badge: #8fa8e6;
+      --att-badge-soft: #232c42;
+      --ffn-badge: #e0a06a;
+      --ffn-badge-soft: #3a2a1c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1c1a17;
+    --paper-line: rgba(250,247,240,0.06);
+    --ink: #f2ede2;
+    --ink-soft: #b7ae9e;
+    --fr: #7ea6e0;
+    --fr-soft: #1f2c3f;
+    --jp: #e08a8a;
+    --jp-soft: #3a2222;
+    --de: #e0c168;
+    --de-soft: #3a3018;
+    --ref: #b28ee0;
+    --ref-soft: #2c2138;
+    --card: #262320;
+    --card-border: rgba(250,247,240,0.10);
+    --shadow: 0 1px 0 rgba(0,0,0,0.2);
+    --dim-off: rgba(250,247,240,0.22);
+    --att-badge: #8fa8e6;
+    --att-badge-soft: #232c42;
+    --ffn-badge: #e0a06a;
+    --ffn-badge-soft: #3a2a1c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      linear-gradient(var(--paper-line) 1px, transparent 1px) 0 0/100% 28px,
+      var(--paper);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; padding: 48px 20px 96px; }
+
+  h1 {
+    font-family: "Hiragino Mincho ProN","Yu Mincho","Georgia",serif;
+    font-size: clamp(22px, 4.5vw, 30px);
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+  }
+  .kicker { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; }
+  p.lead { color: var(--ink-soft); max-width: 64ch; margin: 0 0 36px; }
+
+  .sentence {
+    display: flex; flex-wrap: wrap; gap: 4px 2px;
+    padding: 20px 22px; background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 40px; font-size: 18px;
+  }
+  .tok { padding: 3px 2px; border-radius: 4px; white-space: pre; }
+  .tok.fr { background: var(--fr-soft); color: var(--fr); font-weight: 700; }
+  .tok.topic { background: var(--ref-soft); color: var(--ref); font-weight: 700; }
+
+  section { margin-bottom: 44px; }
+  h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
+  h2 .step-no { font-family: "SF Mono","Menlo",Consolas,monospace; font-size: 12px; color: var(--ink-soft); }
+  .sec-tag { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; letter-spacing: 0.02em; }
+  .sec-tag.att { background: var(--att-badge-soft); color: var(--att-badge); }
+  .sec-tag.ffn { background: var(--ffn-badge-soft); color: var(--ffn-badge); }
+  .note { color: var(--ink-soft); font-size: 14.5px; margin: 0 0 16px; max-width: 64ch; }
+
+  .controls { display: grid; gap: 22px; background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 22px 24px; box-shadow: var(--shadow); }
+  .control-row label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+  .control-row .val { font-family: "SF Mono","Menlo",Consolas,monospace; color: var(--ink-soft); }
+  input[type=range] { width: 100%; accent-color: var(--ref); }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .toggle-row .label { font-size: 14px; }
+  .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button.pill {
+    border: 1.5px solid var(--card-border); background: transparent; color: var(--ink);
+    padding: 7px 14px; border-radius: 999px; font-size: 13.5px; cursor: pointer; font-family: inherit;
+  }
+  button.pill.active { border-color: var(--ref); color: var(--ref); background: var(--ref-soft); font-weight: 700; }
+  button.pill:focus-visible { outline: 2px solid var(--ref); outline-offset: 2px; }
+
+  .diagram-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 8px 8px 20px; box-shadow: var(--shadow); overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 480px; }
+  .node-box { fill: var(--card); stroke-width: 1.6; }
+  .node-label { font-size: 17px; font-weight: 700; font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; }
+  .node-sub { font-size: 10.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .weight-label { font-size: 13px; font-weight: 700; font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-label { font-size: 13.5px; font-weight: 700; font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; }
+  .pipe-label.sm { font-size: 11px; }
+  .pipe-sub { font-size: 9.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-val { font-size: 10.5px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .pipe-stage { font-size: 10px; fill: var(--ink-soft); font-family: "SF Mono","Menlo",Consolas,monospace; }
+
+  .vec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .vec-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px 16px 14px; box-shadow: var(--shadow); }
+  .vec-card .who { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .dot-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink:0; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; }
+  .bar-row.off { opacity: 0.4; }
+  .bar-row .bar-label { width: 78px; color: var(--ink-soft); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--paper-line); border-radius: 5px; position: relative; overflow: hidden; }
+  .bar-fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+  .bar-num { width: 38px; text-align: right; font-family: "SF Mono","Menlo",Consolas,monospace; color: var(--ink-soft); flex-shrink: 0; }
+  .grp-label { font-size: 10px; color: var(--ink-soft); margin: 10px 0 5px; padding-top: 8px; border-top: 1px dashed var(--card-border); }
+  .grp-label:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  .score-line { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--card-border); font-family: "SF Mono","Menlo",Consolas,monospace; font-size: 12.5px; color: var(--ink-soft); }
+
+  .result-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 22px 24px; box-shadow: var(--shadow); }
+  .fire-bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden; margin: 14px 0 10px; border: 1px solid var(--card-border); }
+  .fire-seg { display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; color: white; font-family: "SF Mono","Menlo",Consolas,monospace; }
+  .verdict { font-size: 15.5px; margin-top: 14px; }
+  .verdict b { color: var(--ref); }
+
+  .steps { display: grid; gap: 18px; }
+  .step-item { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .step-item .t { font-weight: 700; font-size: 14px; margin-bottom: 5px; }
+  .step-item .d { font-size: 14px; color: var(--ink-soft); }
+
+  footer { color: var(--ink-soft); font-size: 13px; border-top: 1px solid var(--card-border); padding-top: 20px; margin-top: 56px; }
+
+  @media (max-width: 480px) { .wrap { padding: 32px 14px 72px; } .sentence { font-size: 16px; padding: 16px; } }
+
+
+  .top-wrap { max-width: 780px; margin: 0 auto; padding: 48px 20px 0; }
+  .top-kicker { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; }
+  .top-h1 {
+    font-family: "Hiragino Mincho ProN","Yu Mincho","Georgia",serif;
+    font-size: clamp(24px, 4.5vw, 32px); font-weight: 600; line-height: 1.5; margin: 0 0 6px;
+  }
+  .top-lead { color: var(--ink-soft); max-width: 64ch; margin: 0 0 32px; }
+
+  .compare-card {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 4px 0; margin-bottom: 32px; overflow-x: auto;
+  }
+  table.compare { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+  table.compare th, table.compare td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+  table.compare th { color: var(--ink-soft); font-weight: 700; font-size: 12px; }
+  table.compare tr:last-child td { border-bottom: none; }
+  table.compare td.att-col { color: var(--att-badge); }
+  table.compare td.ffn-col { color: var(--ffn-badge); }
+  table.compare td.row-label { color: var(--ink-soft); white-space: nowrap; }
+
+  .tabbar { display: flex; gap: 10px; margin-bottom: 8px; }
+  button.tabbtn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1.5px solid var(--card-border); background: var(--card); color: var(--ink-soft);
+    padding: 14px 16px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  button.tabbtn .badge-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  button.tabbtn.att.is-active { border-color: var(--att-badge); color: var(--att-badge); background: var(--att-badge-soft); }
+  button.tabbtn.ffn.is-active { border-color: var(--ffn-badge); color: var(--ffn-badge); background: var(--ffn-badge-soft); }
+  button.tabbtn:focus-visible { outline: 2px solid var(--ref); outline-offset: 2px; }
+
+  .panel-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; border-radius: 10px; font-size: 13.5px; font-weight: 700;
+    margin: 28px auto 8px; max-width: 780px;
+  }
+  .panel-banner.att { background: var(--att-badge-soft); color: var(--att-badge); }
+  .panel-banner.ffn { background: var(--ffn-badge-soft); color: var(--ffn-badge); }
+  .panel-banner .badge-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  .tab-panel { display: none; }
+  .tab-panel.is-active { display: block; }
+
+  @media (max-width: 480px) {
+    .top-wrap { padding: 32px 14px 0; }
+    .tabbar { flex-direction: column; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="top-wrap">
+  <p class="top-kicker">トイ・トランスフォーマー実験室</p>
+  <h1 class="top-h1">Attention と FFN、それぞれの仕事を見比べる</h1>
+  <p class="top-lead">
+    同じ「残差ストリームに情報を足し込む」という仕組みでも、Attentionと FFN では中身がまったく違います。
+    どちらのパイプライン図にも <b>Attention層</b> と <b>FFN層</b> の両方を(片方は計算せずグレーの箱として)配置してあるので、
+    今どちらの層の、ブロック全体のどの位置の話をしているのかが常に見えるはずです。
+  </p>
+
+  <div class="compare-card">
+    <table class="compare">
+      <thead>
+        <tr><th></th><th style="color:var(--att-badge);">🔵 Attention</th><th style="color:var(--ffn-badge);">🟠 FFN</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-label">何を参照するか</td>
+          <td class="att-col">他のトークン(文脈)</td>
+          <td class="ffn-col">自分自身のベクトルパターン</td>
+        </tr>
+        <tr>
+          <td class="row-label">中心の計算</td>
+          <td class="att-col">Q・K の内積 → Softmax</td>
+          <td class="ffn-col">Key・x − しきい値 → ReLU</td>
+        </tr>
+        <tr>
+          <td class="row-label">候補どうしの関係</td>
+          <td class="att-col">競合する(重みの合計が1)</td>
+          <td class="ffn-col">独立(同時に複数発火してよい)</td>
+        </tr>
+        <tr>
+          <td class="row-label">情報の性質</td>
+          <td class="att-col">動的(文脈によって毎回変わる)</td>
+          <td class="ffn-col">静的(学習時に固定された知識)</td>
+        </tr>
+        <tr>
+          <td class="row-label">今回の例</td>
+          <td class="att-col">「前者」→「イヌ」</td>
+          <td class="ffn-col">「フランスの首都は？」→「パリ」</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tabbar">
+    <button class="tabbtn att is-active" id="tab-att" type="button"><span class="badge-dot" style="background:var(--att-badge);"></span>Attention を見る</button>
+    <button class="tabbtn ffn" id="tab-ffn" type="button"><span class="badge-dot" style="background:var(--ffn-badge);"></span>FFN を見る</button>
+  </div>
+</div>
+
+<div class="panel-banner att is-active" id="banner-att"><span class="badge-dot"></span>この下は Attention レイヤーのシミュレータです</div>
+<div class="panel-banner ffn" id="banner-ffn" style="display:none;"><span class="badge-dot"></span>この下は FFN レイヤーのシミュレータです</div>
+
+<div class="tab-panel is-active" id="panel-att">
+<div class="wrap">
+
+
+  <p class="kicker">トイ・トランスフォーマー実験室</p>
+  <h1>「前者」はどうやって「イヌ」に辿り着くのか</h1>
+  <p class="lead">
+    埋め込みを10次元に増やし、「第一要素らしさ・第二要素らしさ」という<b>経路(ルーティング)用</b>の次元と、
+    「イヌらしさ・ネコらしさ」という<b>中身(コンテンツ)用</b>の次元を、はっきり別の軸として持たせました。
+    経路の次元は単語自体の性質ではなく文中の位置から決まるので、まずは文脈に依らない静的な埋め込みと、
+    位置から後付けされるロールとを分けて見られるようにしています。
+  </p>
+
+  <div class="sentence" id="att-sentence"></div>
+
+  <section>
+    <h2><span class="step-no">01</span> <span class="sec-tag att">Attention</span> 設定を動かしてみる</h2>
+    <p class="note">「イヌ」と「ネコ」の並び順、そして Q・K の学習度合いを変えて、Attention の挙動を観察してください。</p>
+    <div class="controls">
+      <div class="toggle-row">
+        <span class="label">文中の並び順</span>
+        <button class="swap" id="att-swapOrder" type="button"></button>
+      </div>
+      <div class="control-row">
+        <label>「前者」のクエリの向き
+          <span class="val" id="att-queryVal"></span>
+        </label>
+        <input type="range" id="att-queryDir" min="-100" max="100" value="100" step="1">
+      </div>
+      <div class="control-row">
+        <label>K の学習の進み具合(Q と噛み合っているか)
+          <span class="val" id="att-alignVal"></span>
+        </label>
+        <input type="range" id="att-alignQuality" min="0" max="100" value="100" step="1">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">02</span> <span class="sec-tag att">Attention</span> 計算パイプライン全体図</h2>
+    <p class="note">上から下へ読んでください。実線の太さ・濃さは実際に流れている重み(Attentionの重み)を表します。破線は「経路には使われない情報」、大きく迂回する矢印は残差ストリームのスキップ接続です。一番下のグレーの箱は、この後に続くFFN層の位置を示すためだけのもので、ここでは計算していません。</p>
+    <div class="diagram-card">
+      <svg id="att-pipeline" viewBox="0 0 640 1060" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">03</span> <span class="sec-tag att">Attention</span> Attention の重みだけを拡大</h2>
+    <p class="note">上の図の「Q・K → softmax」の部分だけを取り出したものです。「前者」から2本の矢印が伸び、太さと濃さが Attention の重みを表します。</p>
+    <div class="diagram-card">
+      <svg id="att-diagram" viewBox="0 0 640 230" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04a</span> <span class="sec-tag att">Attention</span> 静的トークン埋め込み(語彙表由来)</h2>
+    <p class="note">「イヌ」というトークン自体の埋め込みは、文中のどこに出てきても常に同じです。<code>item-1/item-2</code>は0のまま — この単語はまだ自分が何番目に出てきたか知りません。並び順ボタンを押しても、ここは変化しません。</p>
+    <div class="vec-grid" id="att-tokGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04b</span> <span class="sec-tag att">Attention</span> 位置ロールの付与(浅い層)</h2>
+    <p class="note">位置エンコーディングと「AとBが」という並列構文を読む浅い層が、「どちらが先に出たか」を検出し、<code>item-1/item-2</code>次元だけを残差ストリームに書き足します。並び順を変えると、動くのはここだけです。</p>
+    <div class="vec-grid" id="att-roleGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04c</span> <span class="sec-tag att">Attention</span> 深い層に渡される最終ベクトル(=04a + 04b)</h2>
+    <p class="note">静的な埋め込みに位置ロールを足し算した結果です。ここから先、パイプライン図の「Q・K・V」の計算に入ります。</p>
+    <div class="vec-grid" id="att-embGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">05</span> <span class="sec-tag att">Attention</span> Q / K が実際に読んでいる次元</h2>
+    <p class="note">この Attention ヘッドの Q・K は、10次元のうち「経路」の2次元しか見ていません。グレーの行は、値があってもこのヘッドには無視されている次元です。</p>
+    <div class="vec-grid" id="att-qkGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">06</span> <span class="sec-tag att">Attention</span> Value と、残差ストリームへの加算</h2>
+    <p class="note">Value は逆に「経路」の次元を運ばず、「中身」の次元だけを運びます。Softmax の重みでイヌ・ネコの Value を混ぜ合わせ、「前者」のベクトルに<b>足し込みます</b>。</p>
+    <div class="result-card">
+      <div class="softmax-bar" id="att-softmaxBar"></div>
+      <div class="verdict" id="att-verdict"></div>
+    </div>
+    <div class="vec-grid" id="att-vGrid" style="margin-top:14px;"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">07</span> <span class="sec-tag att">Attention</span> ここまでの流れ</h2>
+    <div class="steps">
+      <div class="step-item">
+        <div class="t">トークン埋め込みは文脈非依存</div>
+        <div class="d">「イヌ」というトークンの語彙表由来の埋め込みは、文中のどこにあっても常に同じ。<code>item-1らしさ</code>のような位置に依存する情報は、この段階ではまだ存在しない。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">浅い層が位置ロールを書き足す</div>
+        <div class="d">位置エンコーディングと「AとBが」という並列構文を検出する浅い層が、<code>item-1/item-2</code>次元だけを残差ストリームに追加で書き込む。ここで初めて「文脈化された」ベクトルになる。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">経路と中身は別の次元</div>
+        <div class="d">こうして出来上がった最終ベクトルの中で、「第一要素らしさ/第二要素らしさ」(経路)と「イヌらしさ/ネコらしさ」(中身)は独立した軸として共存している。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">Q / K の内積 — 経路の次元だけを見る</div>
+        <div class="d">この Attention ヘッドの Q・K は経路の2次元しか参照しない。イヌらしさ/ネコらしさの次元は Q・K の内積にはまったく寄与しない。「どこを見るか」は「何が書いてあるか」と切り離されている。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">Softmax → 加重和</div>
+        <div class="d">経路の次元から計算されたスコアを Softmax で重みに変換し、その重みで Value(中身の次元だけを運ぶベクトル)を混ぜ合わせる。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">残差ストリームへの加算</div>
+        <div class="d">混ぜ合わされた Value は「前者」の元のベクトルに上書きではなく<b>足し算</b>される。結果、「前者」の"イヌらしさ"次元がAttention重みの分だけ立ち上がり、以降の層では「前者 ≈ イヌ」として扱える状態になる。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">(この先は FFN の仕事)</div>
+        <div class="d">どのトークンを見るかを決めるのは Attention の役割。運ばれてきた"イヌらしさ"をどう加工するかは、この後の FFN 層が引き継ぐ。</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    単純化のための注記: 実際のモデルではこの10次元のような綺麗な専用軸ではなく、多数の特徴が重ね合わさって(superposition)、単一の軸ではなく「方向」としてエンコードされるのが一般的です。また Attention ヘッドは複数あり、経路と中身の分離もここまで明瞭ではないことが多いです。ここでは「ルーティングに使う次元」と「運ばれる中身の次元」が原理的には別物である、という点だけを抜き出して可視化しています。
+  </footer>
+
+
+</div>
+</div>
+
+<div class="tab-panel" id="panel-ffn">
+<div class="wrap">
+
+
+  <p class="kicker">トイ・トランスフォーマー実験室 — FFN 編</p>
+  <h1>「フランスの首都は？」はどうやって「パリ」に辿り着くのか</h1>
+  <p class="lead">
+    今回はAttentionではなくFFNです。FFNを「たくさんのニューロンからなるKey-Valueメモリ」とみなす見方
+    (Geva et al., 2020)に沿って、各ニューロンが「国」と「話題」の組み合わせを検出するKeyを持ち、
+    条件が揃うとReLUで発火して、対応するValue(その都市らしさ)を残差ストリームに書き込む様子を再現しました。
+  </p>
+
+  <div class="sentence" id="ffn-sentence"></div>
+
+  <section>
+    <h2><span class="step-no">01</span> <span class="sec-tag ffn">FFN</span> 設定を動かしてみる</h2>
+    <p class="note">質問の「国」と「話題の強さ」、そしてニューロンの学習度(閾値の鋭さ)を変えて、どのニューロンが発火するか観察してください。</p>
+    <div class="controls">
+      <div class="toggle-row">
+        <span class="label">質問されている国</span>
+        <div class="pill-row" id="ffn-countryPills"></div>
+      </div>
+      <div class="control-row">
+        <label>「首都」というトピックの強さ
+          <span class="val" id="ffn-topicVal"></span>
+        </label>
+        <input type="range" id="ffn-topicStrength" min="0" max="100" value="100" step="1">
+      </div>
+      <div class="control-row">
+        <label>ニューロンの学習度(閾値の鋭さ)
+          <span class="val" id="ffn-trainVal"></span>
+        </label>
+        <input type="range" id="ffn-trainQuality" min="0" max="100" value="100" step="1">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">02</span> <span class="sec-tag ffn">FFN</span> 計算パイプライン全体図</h2>
+    <p class="note">入力ベクトル x が3つのニューロンすべてに渡ります。各ニューロンは独立に Key・x − しきい値 を計算し、ReLU を通過した分だけ自分の Value を残差に加算します。Attentionと違って、ニューロン同士は競合しません(softmaxがない)。一番上のグレーの箱は、この入力 x を作った前段のAttention層の位置を示すためだけのもので、ここでは計算していません。</p>
+    <div class="diagram-card">
+      <svg id="ffn-pipeline" viewBox="0 0 640 890" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">03</span> <span class="sec-tag ffn">FFN</span> 発火の様子だけを拡大</h2>
+    <p class="note">上の図の「Key・x → ReLU」の部分だけを取り出したものです。入力 x から3本の矢印が伸び、太さと濃さがそれぞれのニューロンの発火度を表します。</p>
+    <div class="diagram-card">
+      <svg id="ffn-diagram" viewBox="0 0 640 230" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04a</span> <span class="sec-tag ffn">FFN</span> 静的トークン埋め込み(語彙表由来)</h2>
+    <p class="note">「フランス」「首都」というトークンそれぞれの埋め込みです。この段階では、まだ1つの位置に合成されていません。並び順ではなく国を選び直しても、単語自体の埋め込みの形は変わりません。</p>
+    <div class="vec-grid" id="ffn-tokGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04b</span> <span class="sec-tag ffn">FFN</span> 前段の Attention による集約(浅い層)</h2>
+    <p class="note">FFNは1つの位置のベクトルしか見られません。なので前段のAttention層が、「フランス」と「首都」、それぞれのトークンの特徴をあらかじめこの位置にコピーしてきます。イヌ/ネコの例で見た「浅い層が位置ロールを書き込む」のと同じ発想です。</p>
+    <div class="vec-grid" id="ffn-roleGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">04c</span> <span class="sec-tag ffn">FFN</span> 深い層(FFN)に渡される最終ベクトル(=04a + 04b)</h2>
+    <p class="note">2つのトークンの特徴が1つの位置に集約された結果です。中身(都市らしさ)の次元はまだ全部ゼロ — ここから先、パイプライン図の「Key・Value」の計算に入ります。</p>
+    <div class="vec-grid" id="ffn-embGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">05</span> <span class="sec-tag ffn">FFN</span> Key が実際に読んでいる次元</h2>
+    <p class="note">各ニューロンのKeyは、10次元のうち「国」と「トピック」の2つしか見ていません。グレーの行は、値があってもこのニューロンには無視されている次元です。</p>
+    <div class="vec-grid" id="ffn-keyGrid"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">06</span> <span class="sec-tag ffn">FFN</span> Value の加重和と、残差ストリームへの加算</h2>
+    <p class="note">Keyは「国・トピック」の次元しか見ませんが、Valueは逆にそこを運ばず、「都市らしさ」の次元だけを運びます。ReLUを通った発火度で重み付けしたValueを、入力ベクトルに<b>足し込みます</b>。</p>
+    <div class="result-card">
+      <div class="fire-bar" id="ffn-fireBar"></div>
+      <div class="verdict" id="ffn-verdict"></div>
+    </div>
+    <div class="vec-grid" id="ffn-finalGrid" style="margin-top:14px;"></div>
+  </section>
+
+  <section>
+    <h2><span class="step-no">07</span> <span class="sec-tag ffn">FFN</span> Attention との違い</h2>
+    <div class="steps">
+      <div class="step-item">
+        <div class="t">競合しない</div>
+        <div class="d">Attentionの重みはSoftmaxで正規化され、複数の候補が重みを奪い合う。FFNのニューロンは独立にReLUを通るだけなので、条件さえ揃えば複数のニューロンが同時に発火してもよい。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">ReLUがAND条件を作る</div>
+        <div class="d">Key・x がしきい値を超えたときだけ発火するので、「国が合っている」だけでも「トピックが合っている」だけでも発火せず、両方揃って初めて発火する — というAND的な振る舞いをしきい値付きの線形和とReLUだけで実現している。</div>
+      </div>
+      <div class="step-item">
+        <div class="t">「知識」はニューロンの中に静的に眠っている</div>
+        <div class="d">Attentionは文中の他のトークンを動的に参照するのに対し、FFNのKey・Valueのペアは学習時に固定され、以後は同じ入力パターンには常に同じValueを返す — 事典の索引のような静的な知識の格納庫として働く。</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    単純化のための注記: 実際のFFN層は数千〜数万のニューロンを持ち、1つの事実が複数のニューロンに重ね合わさって(superposition)分散的に格納されていることが多く、単一のニューロンがきれいに「パリ担当」になっているとは限りません。また実際の閾値はバイアス項として学習され、Keyベクトルも生の埋め込みではなく前段の層で変換された表現に対して働きます。ここでは「Key・x − しきい値 → ReLU → 加重和」という中心的なメカニズムだけを取り出しています。
+  </footer>
+
+
+</div>
+</div>
+
+<script>
+(function(){
+  var tabAtt = document.getElementById('tab-att');
+  var tabFfn = document.getElementById('tab-ffn');
+  var panelAtt = document.getElementById('panel-att');
+  var panelFfn = document.getElementById('panel-ffn');
+  var bannerAtt = document.getElementById('banner-att');
+  var bannerFfn = document.getElementById('banner-ffn');
+
+  function showAtt(){
+    tabAtt.classList.add('is-active'); tabFfn.classList.remove('is-active');
+    panelAtt.classList.add('is-active'); panelFfn.classList.remove('is-active');
+    bannerAtt.style.display = 'flex'; bannerFfn.style.display = 'none';
+  }
+  function showFfn(){
+    tabFfn.classList.add('is-active'); tabAtt.classList.remove('is-active');
+    panelFfn.classList.add('is-active'); panelAtt.classList.remove('is-active');
+    bannerFfn.style.display = 'flex'; bannerAtt.style.display = 'none';
+  }
+  tabAtt.addEventListener('click', showAtt);
+  tabFfn.addEventListener('click', showFfn);
+})();
+</script>
+<script>
+
+(function(){
+  const sentenceEl = document.getElementById('att-sentence');
+  const tokens = [
+    {t:'イヌ', cls:'dog'}, {t:'と', cls:''}, {t:'ネコ', cls:'cat'}, {t:'が', cls:''},
+    {t:'いました。', cls:''}, {t:'前者', cls:'ref'}, {t:'は、', cls:''},
+    {t:'年老いて', cls:''}, {t:'いました。', cls:''}
+  ];
+  sentenceEl.innerHTML = tokens.map(function(tk){
+    return '<span class="tok ' + tk.cls + '">' + tk.t + '</span>';
+  }).join('');
+
+  // ---- 10-dim conceptual embedding space ----
+  // 0: item-1らしさ (経路)  1: item-2らしさ (経路)
+  // 2: イヌらしさ (中身)    3: ネコらしさ (中身)
+  // 4: 前者らしさ (中身)    5: 動物である (その他/共有)
+  // 6: 人間である (その他)  7: (ノイズA)
+  // 8: (ノイズB)            9: (ノイズC)
+  const DIM_LABELS = ['item-1','item-2','イヌらしさ','ネコらしさ','前者らしさ','動物','人間','noise-A','noise-B','noise-C'];
+  const GROUP_AT = { 0: '経路(ルーティング)', 2: '中身(コンテンツ)', 7: 'その他(未使用)' };
+  const ROUTE_DIMS = [0,1];
+
+  const swapBtn = document.getElementById('att-swapOrder');
+  const queryDirInput = document.getElementById('att-queryDir');
+  const alignInput = document.getElementById('att-alignQuality');
+  const queryVal = document.getElementById('att-queryVal');
+  const alignVal = document.getElementById('att-alignVal');
+  const diagram = document.getElementById('att-diagram');
+  const pipeline = document.getElementById('att-pipeline');
+  const tokGrid = document.getElementById('att-tokGrid');
+  const roleGrid = document.getElementById('att-roleGrid');
+  const embGrid = document.getElementById('att-embGrid');
+  const qkGrid = document.getElementById('att-qkGrid');
+  const vGrid = document.getElementById('att-vGrid');
+  const softmaxBar = document.getElementById('att-softmaxBar');
+  const verdict = document.getElementById('att-verdict');
+
+  let dogFirst = true; // true: イヌが list-item-1
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function dot2(a,b){ return a[0]*b[0] + a[1]*b[1]; }
+  function softmax2(s1,s2){
+    const m = Math.max(s1,s2);
+    const e1 = Math.exp(s1-m), e2 = Math.exp(s2-m);
+    const sum = e1+e2;
+    return [e1/sum, e2/sum];
+  }
+  function zeros(n){ return new Array(n).fill(0); }
+
+  function tokenEmbeddings(){
+    // Context-free lookup-table embeddings: identical no matter where the
+    // word sits in the sentence. item-1/item-2 are always 0 here.
+    const embDogTok = [0,0, 1,0,0, 1,0, 0.15,-0.1,0.05];
+    const embCatTok = [0,0, 0,1,0, 1,0, -0.05,0.12,-0.08];
+    const embRefTok = [0,0, 0,0,1, 0,0, 0.08,0.03,-0.04];
+    return { embDogTok, embCatTok, embRefTok };
+  }
+
+  function positionalRoles(){
+    // A shallow layer reads positional encoding + the "AとBが" pattern and
+    // writes item-1/item-2 additively into the residual stream.
+    const dogRole = zeros(10);
+    const catRole = zeros(10);
+    if (dogFirst) { dogRole[0] = 1; catRole[1] = 1; }
+    else { dogRole[1] = 1; catRole[0] = 1; }
+    return { dogRole, catRole };
+  }
+
+  function addVec(a,b){ return a.map(function(v,i){ return v + b[i]; }); }
+
+  function compute(){
+    const qd = parseFloat(queryDirInput.value) / 100; // -1..1
+    const a  = parseFloat(alignInput.value) / 100;    // 0..1
+
+    const { embDogTok, embCatTok, embRefTok } = tokenEmbeddings();
+    const { dogRole, catRole } = positionalRoles();
+    const embDog = addVec(embDogTok, dogRole);
+    const embCat = addVec(embCatTok, catRole);
+    const embRef = embRefTok.slice();
+
+    // Q: derived from 前者's embedding, but this head projects only onto the 2 routing dims.
+    const Q2 = [qd, -qd];
+    const Q = zeros(10); Q[0]=Q2[0]; Q[1]=Q2[1];
+
+    // K: derived from each token's routing dims, scaled by how well training has separated them.
+    const K_item1_clean = [1, -1];
+    const K_item2_clean = [-1, 1];
+    const K_neutral = [0, 0];
+    const K_item1 = [lerp(K_neutral[0], K_item1_clean[0], a), lerp(K_neutral[1], K_item1_clean[1], a)];
+    const K_item2 = [lerp(K_neutral[0], K_item2_clean[0], a), lerp(K_neutral[1], K_item2_clean[1], a)];
+    const K_dog2 = dogFirst ? K_item1 : K_item2;
+    const K_cat2 = dogFirst ? K_item2 : K_item1;
+    const K_dog = zeros(10); K_dog[0]=K_dog2[0]; K_dog[1]=K_dog2[1];
+    const K_cat = zeros(10); K_cat[0]=K_cat2[0]; K_cat[1]=K_cat2[1];
+
+    const scale = Math.sqrt(2);
+    const score_dog = dot2(Q2, K_dog2) / scale;
+    const score_cat = dot2(Q2, K_cat2) / scale;
+    const [w_dog, w_cat] = softmax2(score_dog, score_cat);
+
+    // V: carries every dim EXCEPT the routing dims (content only).
+    const V_dog = embDog.slice(); V_dog[0]=0; V_dog[1]=0;
+    const V_cat = embCat.slice(); V_cat[0]=0; V_cat[1]=0;
+
+    const refUpdated = embRef.map(function(v,i){ return v + w_dog*V_dog[i] + w_cat*V_cat[i]; });
+
+    return { embDogTok, embCatTok, embRefTok, dogRole, catRole,
+              embDog, embCat, embRef, Q, K_dog, K_cat, V_dog, V_cat, refUpdated,
+              score_dog, score_cat, w_dog, w_cat, qd, a };
+  }
+
+  function fmt(n){ return (n>=0?'+':'') + n.toFixed(2); }
+
+  function barRow(label, val, color, dimmed){
+    const min=-1, max=1;
+    const pct = ((val - min) / (max - min)) * 100;
+    const zeroPct = ((0 - min) / (max - min)) * 100;
+    const left = Math.min(pct, zeroPct);
+    const width = Math.abs(pct - zeroPct);
+    return '<div class="bar-row' + (dimmed?' off':'') + '">' +
+      '<span class="bar-label">' + label + '</span>' +
+      '<span class="bar-track"><span class="bar-fill" style="left:' + left + '%; width:' + width + '%; background:' + (dimmed?'var(--dim-off)':color) + ';"></span></span>' +
+      '<span class="bar-num">' + fmt(val) + '</span>' +
+      '</div>';
+  }
+
+  function vecBars(vec, color, dimMask){
+    let html = '';
+    for (let i=0;i<DIM_LABELS.length;i++){
+      if (GROUP_AT[i]) html += '<div class="grp-label">' + GROUP_AT[i] + '</div>';
+      const dimmed = dimMask ? dimMask[i] : false;
+      html += barRow(DIM_LABELS[i], vec[i], color, dimmed);
+    }
+    return html;
+  }
+
+  function renderDiagram(state){
+    const dogColor = getComputedStyle(document.documentElement).getPropertyValue('--dog').trim();
+    const catColor = getComputedStyle(document.documentElement).getPropertyValue('--cat').trim();
+    const refColor = getComputedStyle(document.documentElement).getPropertyValue('--ref').trim();
+    const inkSoft = getComputedStyle(document.documentElement).getPropertyValue('--ink-soft').trim();
+
+    const refX = 320, refY = 190;
+    const dogX = 130, dogY = 55;
+    const catX = 510, catY = 55;
+
+    const wDog = state.w_dog, wCat = state.w_cat;
+    const dogStroke = 2 + wDog*14;
+    const catStroke = 2 + wCat*14;
+
+    function path(x1,y1,x2,y2){
+      const mx = (x1+x2)/2, my = (y1+y2)/2 - 20;
+      return 'M ' + x1 + ' ' + y1 + ' Q ' + mx + ' ' + my + ' ' + x2 + ' ' + y2;
+    }
+
+    diagram.innerHTML =
+      '<path d="' + path(refX-14, refY-18, dogX+6, dogY+34) + '" fill="none" stroke="' + dogColor + '" stroke-width="' + dogStroke + '" opacity="' + (0.25+0.65*wDog) + '" stroke-linecap="round"/>' +
+      '<path d="' + path(refX+14, refY-18, catX-6, catY+34) + '" fill="none" stroke="' + catColor + '" stroke-width="' + catStroke + '" opacity="' + (0.25+0.65*wCat) + '" stroke-linecap="round"/>' +
+
+      '<text x="' + ((refX+dogX)/2 - 20) + '" y="' + ((refY+dogY)/2 + 8) + '" class="weight-label" fill="' + dogColor + '">' + Math.round(wDog*100) + '%</text>' +
+      '<text x="' + ((refX+catX)/2 - 10) + '" y="' + ((refY+catY)/2 + 8) + '" class="weight-label" fill="' + catColor + '">' + Math.round(wCat*100) + '%</text>' +
+
+      '<rect x="' + (dogX-46) + '" y="' + (dogY-28) + '" width="92" height="46" rx="10" class="node-box" stroke="' + dogColor + '"/>' +
+      '<text x="' + dogX + '" y="' + (dogY-3) + '" text-anchor="middle" class="node-label" fill="' + dogColor + '">イヌ</text>' +
+      '<text x="' + dogX + '" y="' + (dogY+14) + '" text-anchor="middle" class="node-sub" fill="' + inkSoft + '">' + (dogFirst ? 'item-1' : 'item-2') + '</text>' +
+
+      '<rect x="' + (catX-46) + '" y="' + (catY-28) + '" width="92" height="46" rx="10" class="node-box" stroke="' + catColor + '"/>' +
+      '<text x="' + catX + '" y="' + (catY-3) + '" text-anchor="middle" class="node-label" fill="' + catColor + '">ネコ</text>' +
+      '<text x="' + catX + '" y="' + (catY+14) + '" text-anchor="middle" class="node-sub" fill="' + inkSoft + '">' + (dogFirst ? 'item-2' : 'item-1') + '</text>' +
+
+      '<rect x="' + (refX-52) + '" y="' + (refY-28) + '" width="104" height="46" rx="10" class="node-box" stroke="' + refColor + '"/>' +
+      '<text x="' + refX + '" y="' + (refY-3) + '" text-anchor="middle" class="node-label" fill="' + refColor + '">前者</text>' +
+      '<text x="' + refX + '" y="' + (refY+14) + '" text-anchor="middle" class="node-sub" fill="' + inkSoft + '">query</text>';
+  }
+
+  // ---------------- Full pipeline diagram ----------------
+  const DOG_X = 130, CAT_X = 510, MID_X = 320;
+  const PNODES = {
+    dogTok:  {x:DOG_X, y:38,  w:104, h:42, label:'イヌ',     sub:'トークン埋め込み', c:'dog'},
+    catTok:  {x:CAT_X, y:38,  w:104, h:42, label:'ネコ',     sub:'トークン埋め込み', c:'cat'},
+    refTok:  {x:MID_X, y:38,  w:104, h:42, label:'前者',     sub:'トークン埋め込み', c:'ref'},
+
+    dogRole: {x:DOG_X, y:112, w:96,  h:32, label:'+ 位置ロール', sub:'浅い層', c:'dog', sm:true},
+    catRole: {x:CAT_X, y:112, w:96,  h:32, label:'+ 位置ロール', sub:'浅い層', c:'cat', sm:true},
+
+    dogComb: {x:DOG_X, y:186, w:104, h:42, label:'イヌ',     sub:'最終埋め込み', c:'dog'},
+    catComb: {x:CAT_X, y:186, w:104, h:42, label:'ネコ',     sub:'最終埋め込み', c:'cat'},
+    refComb: {x:MID_X, y:186, w:104, h:42, label:'前者',     sub:'最終埋め込み', c:'ref'},
+
+    Kdog: {x:DOG_X, y:280, w:88, h:40, label:'K',  sub:'イヌ', c:'dog'},
+    Kcat: {x:CAT_X, y:280, w:88, h:40, label:'K',  sub:'ネコ', c:'cat'},
+    Q:    {x:MID_X, y:280, w:88, h:40, label:'Q',  sub:'前者', c:'ref'},
+
+    scoreDog: {x:200, y:368, w:90, h:34, label:'Q・K',  sub:'score', c:'dog', sm:true},
+    scoreCat: {x:440, y:368, w:90, h:34, label:'Q・K',  sub:'score', c:'cat', sm:true},
+
+    softmax:  {x:MID_X, y:448, w:120, h:42, label:'softmax', sub:'', c:'ref'},
+
+    Vdog: {x:DOG_X, y:530, w:88, h:40, label:'V', sub:'イヌ', c:'dog'},
+    Vcat: {x:CAT_X, y:530, w:88, h:40, label:'V', sub:'ネコ', c:'cat'},
+
+    wvDog: {x:DOG_X, y:614, w:96, h:34, label:'w × V', sub:'イヌ', c:'dog', sm:true},
+    wvCat: {x:CAT_X, y:614, w:96, h:34, label:'w × V', sub:'ネコ', c:'cat', sm:true},
+
+    sum: {x:MID_X, y:696, w:100, h:42, label:'Σ', sub:'加重和', c:'ref'},
+    add: {x:MID_X, y:786, w:100, h:42, label:'+', sub:'残差加算', c:'ref'},
+
+    final: {x:MID_X, y:876, w:150, h:52, label:'前者', sub:'最終ベクトル', c:'ref'},
+
+    ffnStub: {x:MID_X, y:986, w:260, h:64, label:'FFN層', sub:'(このデモでは省略・次の記事へ)', c:'ink-soft', sm:true}
+  };
+
+  function pcolor(c){ return getComputedStyle(document.documentElement).getPropertyValue('--' + c).trim(); }
+
+  function pbezier(x1,y1,x2,y2,bulge){
+    bulge = bulge || 0;
+    const mx = (x1+x2)/2 + bulge, my = (y1+y2)/2;
+    return 'M ' + x1 + ' ' + y1 + ' Q ' + mx + ' ' + my + ' ' + x2 + ' ' + y2;
+  }
+
+  function pnodeSvg(n){
+    const col = pcolor(n.c);
+    const x0 = n.x - n.w/2, y0 = n.y - n.h/2;
+    const labelCls = 'pipe-label' + (n.sm ? ' sm' : '');
+    const labelY = n.sub ? n.y - 3 : n.y + 5;
+    let s = '<rect x="'+x0+'" y="'+y0+'" width="'+n.w+'" height="'+n.h+'" rx="9" class="node-box" stroke="'+col+'"'+(n.sm?' stroke-dasharray="3,2"':'')+'/>' +
+      '<text x="'+n.x+'" y="'+labelY+'" text-anchor="middle" class="'+labelCls+'" fill="'+col+'">'+n.label+'</text>';
+    if (n.sub) s += '<text x="'+n.x+'" y="'+(n.y+13)+'" text-anchor="middle" class="pipe-sub">'+n.sub+'</text>';
+    if (n.extra) s += '<text x="'+n.x+'" y="'+(n.y+n.h/2+13)+'" text-anchor="middle" class="pipe-val">'+n.extra+'</text>';
+    return s;
+  }
+
+  function pedge(a,b,opts){
+    opts = opts || {};
+    const col = opts.color ? pcolor(opts.color) : pcolor('ink-soft');
+    const width = opts.width || 1.6;
+    const opacity = (opts.opacity===undefined) ? 0.6 : opts.opacity;
+    const y1 = a.y + a.h/2, y2 = b.y - b.h/2;
+    const d = pbezier(a.x, y1, b.x, y2, opts.bulge || 0);
+    return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+width+'" opacity="'+opacity+'"'+(opts.dashed?' stroke-dasharray="5,4"':'')+' stroke-linecap="round"/>';
+  }
+
+  function renderPipeline(state){
+    const N = PNODES;
+    const wDog = state.w_dog, wCat = state.w_cat;
+
+    // annotate a few nodes with live numeric readouts
+    N.Q.extra    = 'q=' + fmt(state.qd);
+    N.Kdog.extra = fmt(state.K_dog[0]) + ',' + fmt(state.K_dog[1]);
+    N.Kcat.extra = fmt(state.K_cat[0]) + ',' + fmt(state.K_cat[1]);
+    N.scoreDog.extra = fmt(state.score_dog);
+    N.scoreCat.extra = fmt(state.score_cat);
+    N.softmax.extra  = Math.round(wDog*100) + '% / ' + Math.round(wCat*100) + '%';
+    N.Vdog.extra = 'イヌ性=' + fmt(state.V_dog[2]);
+    N.Vcat.extra = 'ネコ性=' + fmt(state.V_cat[3]);
+    N.wvDog.extra = '×' + wDog.toFixed(2);
+    N.wvCat.extra = '×' + wCat.toFixed(2);
+    N.final.extra = 'イヌ性=' + fmt(state.refUpdated[2]) + '  ネコ性=' + fmt(state.refUpdated[3]);
+
+    let edges = '';
+    // embedding -> combined
+    edges += pedge(N.dogTok, N.dogComb, {color:'dog', opacity:0.55});
+    edges += pedge(N.dogRole, N.dogComb, {color:'dog', opacity:0.55});
+    edges += pedge(N.catTok, N.catComb, {color:'cat', opacity:0.55});
+    edges += pedge(N.catRole, N.catComb, {color:'cat', opacity:0.55});
+    edges += pedge(N.refTok, N.refComb, {color:'ref', opacity:0.55});
+
+    // combined -> K / Q
+    edges += pedge(N.dogComb, N.Kdog, {color:'dog', opacity:0.6});
+    edges += pedge(N.catComb, N.Kcat, {color:'cat', opacity:0.6});
+    edges += pedge(N.refComb, N.Q,    {color:'ref', opacity:0.6});
+
+    // combined -> V (skip past the K/Q row, routed around it)
+    edges += pedge(N.dogComb, N.Vdog, {color:'dog', opacity:0.35, dashed:true, bulge:-70});
+    edges += pedge(N.catComb, N.Vcat, {color:'cat', opacity:0.35, dashed:true, bulge:70});
+
+    // Q,K -> score
+    edges += pedge(N.Q, N.scoreDog, {color:'dog', width:1.4+wDog*5, opacity:0.3+0.6*wDog});
+    edges += pedge(N.Kdog, N.scoreDog, {color:'dog', width:1.4+wDog*5, opacity:0.3+0.6*wDog});
+    edges += pedge(N.Q, N.scoreCat, {color:'cat', width:1.4+wCat*5, opacity:0.3+0.6*wCat});
+    edges += pedge(N.Kcat, N.scoreCat, {color:'cat', width:1.4+wCat*5, opacity:0.3+0.6*wCat});
+
+    // score -> softmax
+    edges += pedge(N.scoreDog, N.softmax, {color:'dog', width:1.4+wDog*5, opacity:0.3+0.6*wDog});
+    edges += pedge(N.scoreCat, N.softmax, {color:'cat', width:1.4+wCat*5, opacity:0.3+0.6*wCat});
+
+    // softmax -> w*V, V -> w*V
+    edges += pedge(N.softmax, N.wvDog, {color:'dog', width:1.4+wDog*6, opacity:0.3+0.6*wDog, bulge:-40});
+    edges += pedge(N.softmax, N.wvCat, {color:'cat', width:1.4+wCat*6, opacity:0.3+0.6*wCat, bulge:40});
+    edges += pedge(N.Vdog, N.wvDog, {color:'dog', width:1.4+wDog*6, opacity:0.3+0.6*wDog});
+    edges += pedge(N.Vcat, N.wvCat, {color:'cat', width:1.4+wCat*6, opacity:0.3+0.6*wCat});
+
+    // w*V -> sum
+    edges += pedge(N.wvDog, N.sum, {color:'dog', width:1.4+wDog*6, opacity:0.3+0.6*wDog});
+    edges += pedge(N.wvCat, N.sum, {color:'cat', width:1.4+wCat*6, opacity:0.3+0.6*wCat});
+
+    // sum -> add
+    edges += pedge(N.sum, N.add, {color:'ref', width:2.4, opacity:0.7});
+    // residual skip: refComb -> add (long bulge to the left)
+    edges += pedge(N.refComb, N.add, {color:'ref', width:2.2, opacity:0.55, bulge:-160});
+    // add -> final
+    edges += pedge(N.add, N.final, {color:'ref', width:2.6, opacity:0.8});
+    // final -> next layer (FFN), shown as an inactive stub for structural context
+    edges += pedge(N.final, N.ffnStub, {color:'ink-soft', width:1.6, opacity:0.35, dashed:true});
+
+    let nodesSvg = '';
+    Object.keys(N).forEach(function(k){ nodesSvg += pnodeSvg(N[k]); });
+
+    // stage captions on the left margin
+    const stages = [
+      {y:38,  t:'埋め込み層'},
+      {y:186, t:'(位置ロール加算後)'},
+      {y:280, t:'Q・K・V 射影'},
+      {y:368, t:'内積スコア'},
+      {y:448, t:'softmax'},
+      {y:614, t:'重み付け'},
+      {y:696, t:'加重和'},
+      {y:786, t:'残差ストリームへ加算'},
+      {y:986, t:'(この先はFFN層)'}
+    ];
+    let stageSvg = stages.map(function(s){
+      return '<text x="8" y="'+(s.y+3)+'" class="pipe-stage">'+s.t+'</text>';
+    }).join('');
+
+    pipeline.innerHTML = edges + nodesSvg + stageSvg;
+  }
+
+  function renderTokenAndRole(state){
+    const dogColor = 'var(--dog)', catColor = 'var(--cat)', refColor = 'var(--ref)';
+    tokGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + dogColor + '"></span>トークン埋め込み: イヌ</div>' + vecBars(state.embDogTok, dogColor, null) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + catColor + '"></span>トークン埋め込み: ネコ</div>' + vecBars(state.embCatTok, catColor, null) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + refColor + '"></span>トークン埋め込み: 前者</div>' + vecBars(state.embRefTok, refColor, null) + '</div>';
+
+    roleGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + dogColor + '"></span>位置ロール: イヌ</div>' + vecBars(state.dogRole, dogColor, NOT_ROUTE_MASK) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + catColor + '"></span>位置ロール: ネコ</div>' + vecBars(state.catRole, catColor, NOT_ROUTE_MASK) + '</div>';
+  }
+
+  function renderEmbeddings(state){
+    const dogColor = 'var(--dog)', catColor = 'var(--cat)', refColor = 'var(--ref)';
+    embGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + dogColor + '"></span>Embedding: イヌ</div>' + vecBars(state.embDog, dogColor, null) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + catColor + '"></span>Embedding: ネコ</div>' + vecBars(state.embCat, catColor, null) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + refColor + '"></span>Embedding: 前者</div>' + vecBars(state.embRef, refColor, null) + '</div>';
+  }
+
+  const NOT_ROUTE_MASK = DIM_LABELS.map(function(_,i){ return ROUTE_DIMS.indexOf(i) === -1; });
+  const ROUTE_MASK = DIM_LABELS.map(function(_,i){ return ROUTE_DIMS.indexOf(i) !== -1; });
+
+  function renderQK(state){
+    const dogColor = 'var(--dog)', catColor = 'var(--cat)', refColor = 'var(--ref)';
+    qkGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + refColor + '"></span>Q (前者)</div>' +
+        vecBars(state.Q, refColor, NOT_ROUTE_MASK) +
+      '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + dogColor + '"></span>K (イヌ)</div>' +
+        vecBars(state.K_dog, dogColor, NOT_ROUTE_MASK) +
+        '<div class="score-line">Q・K = ' + fmt(state.score_dog) + '</div>' +
+      '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + catColor + '"></span>K (ネコ)</div>' +
+        vecBars(state.K_cat, catColor, NOT_ROUTE_MASK) +
+        '<div class="score-line">Q・K = ' + fmt(state.score_cat) + '</div>' +
+      '</div>';
+  }
+
+  function renderV(state){
+    const dogColor = 'var(--dog)', catColor = 'var(--cat)', refColor = 'var(--ref)';
+    vGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + dogColor + '"></span>V (イヌ)</div>' + vecBars(state.V_dog, dogColor, ROUTE_MASK) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + catColor + '"></span>V (ネコ)</div>' + vecBars(state.V_cat, catColor, ROUTE_MASK) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + refColor + '"></span>更新後の「前者」</div>' + vecBars(state.refUpdated, refColor, ROUTE_MASK) + '</div>';
+  }
+
+  function renderResult(state){
+    const dogColor = getComputedStyle(document.documentElement).getPropertyValue('--dog').trim();
+    const catColor = getComputedStyle(document.documentElement).getPropertyValue('--cat').trim();
+    const dogPct = Math.round(state.w_dog*100);
+    const catPct = 100 - dogPct;
+
+    softmaxBar.innerHTML =
+      '<div class="softmax-seg" style="width:' + dogPct + '%; background:' + dogColor + ';">' + (dogPct>10?('イヌ ' + dogPct + '%'):'') + '</div>' +
+      '<div class="softmax-seg" style="width:' + catPct + '%; background:' + catColor + ';">' + (catPct>10?('ネコ ' + catPct + '%'):'') + '</div>';
+
+    let msg;
+    const dogDim = state.refUpdated[2].toFixed(2);
+    const catDim = state.refUpdated[3].toFixed(2);
+    if (Math.abs(dogPct-50) < 6) {
+      msg = '重みがほぼ拮抗しています。Q と K がまだ噛み合っていない(学習不足)ので、「前者」の"イヌらしさ"次元も"ネコらしさ"次元もどちらも中途半端(それぞれ' + dogDim + ' / ' + catDim + ')にしか立ち上がりません。';
+    } else if (dogPct > catPct) {
+      msg = '「前者」の<b>イヌらしさ</b>次元が ' + dogDim + ' まで立ち上がりました(ネコらしさは ' + catDim + ')。以降の層ではこのベクトルを見るだけで「前者 ≈ イヌ」と扱えます。';
+    } else {
+      msg = 'クエリの向きを反転させたので、「前者」の<b>ネコらしさ</b>次元が ' + catDim + ' まで立ち上がりました(イヌらしさは ' + dogDim + ')。';
+    }
+    verdict.innerHTML = msg;
+  }
+
+  function render(){
+    const state = compute();
+    renderDiagram(state);
+    renderPipeline(state);
+    renderTokenAndRole(state);
+    renderEmbeddings(state);
+    renderQK(state);
+    renderV(state);
+    renderResult(state);
+  }
+
+  function updateLabels(){
+    const qd = parseFloat(queryDirInput.value);
+    queryVal.textContent = (qd>=0?'+':'') + qd + ' (' + (qd>=0 ? '第一要素を志向' : '第二要素を志向') + ')';
+    alignVal.textContent = alignInput.value + '%';
+    swapBtn.textContent = dogFirst ? '「イヌとネコ」→「ネコとイヌ」に入れ替え' : '「ネコとイヌ」→「イヌとネコ」に戻す';
+  }
+
+  swapBtn.addEventListener('click', function(){
+    dogFirst = !dogFirst;
+    updateLabels();
+    render();
+  });
+  queryDirInput.addEventListener('input', function(){ updateLabels(); render(); });
+  alignInput.addEventListener('input', function(){ updateLabels(); render(); });
+
+  updateLabels();
+  render();
+})();
+
+</script>
+<script>
+
+(function(){
+  const sentenceEl = document.getElementById('ffn-sentence');
+  const tokens = [ {t:'フランス', cls:'fr'}, {t:'の', cls:''}, {t:'首都', cls:'topic'}, {t:'は？', cls:''} ];
+  sentenceEl.innerHTML = tokens.map(function(tk){ return '<span class="tok ' + tk.cls + '">' + tk.t + '</span>'; }).join('');
+
+  // ---- 10-dim conceptual space ----
+  // 0: 国=フランス  1: 国=日本  2: 国=ドイツ  3: トピック=首都
+  // 4: パリらしさ   5: 東京らしさ 6: ベルリンらしさ
+  // 7,8,9: noise
+  const DIM_LABELS = ['国=フランス','国=日本','国=ドイツ','トピック=首都','パリらしさ','東京らしさ','ベルリンらしさ','noise-A','noise-B','noise-C'];
+  const GROUP_AT = { 0: 'キー特徴(Key match)', 4: '中身(Value content)', 7: 'その他(未使用)' };
+  const KEY_DIMS = [0,1,2,3];
+
+  const NEURONS = [
+    { id:'fr', country:0, label:'パリ担当', color:'fr' },
+    { id:'jp', country:1, label:'東京担当', color:'jp' },
+    { id:'de', country:2, label:'ベルリン担当', color:'de' }
+  ];
+
+  const countryPillsEl = document.getElementById('ffn-countryPills');
+  const topicInput = document.getElementById('ffn-topicStrength');
+  const trainInput = document.getElementById('ffn-trainQuality');
+  const topicVal = document.getElementById('ffn-topicVal');
+  const trainVal = document.getElementById('ffn-trainVal');
+  const pipeline = document.getElementById('ffn-pipeline');
+  const diagram = document.getElementById('ffn-diagram');
+  const tokGrid = document.getElementById('ffn-tokGrid');
+  const roleGrid = document.getElementById('ffn-roleGrid');
+  const embGrid = document.getElementById('ffn-embGrid');
+  const keyGrid = document.getElementById('ffn-keyGrid');
+  const finalGrid = document.getElementById('ffn-finalGrid');
+  const fireBar = document.getElementById('ffn-fireBar');
+  const verdict = document.getElementById('ffn-verdict');
+
+  let country = 0; // 0:フランス 1:日本 2:ドイツ -1:なし
+  const COUNTRY_LABELS = ['フランス','日本','ドイツ','(なし)'];
+
+  countryPillsEl.innerHTML = COUNTRY_LABELS.map(function(l,i){
+    return '<button class="pill" data-i="' + i + '">' + l + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(countryPillsEl.children, function(btn){
+    btn.addEventListener('click', function(){
+      country = parseInt(btn.getAttribute('data-i'), 10);
+      if (country === 3) country = -1;
+      updatePills();
+      render();
+    });
+  });
+  function updatePills(){
+    Array.prototype.forEach.call(countryPillsEl.children, function(btn,i){
+      const val = (i===3) ? -1 : i;
+      btn.classList.toggle('active', val === country);
+    });
+  }
+
+  function zeros(n){ return new Array(n).fill(0); }
+  function fmt(n){ return (n>=0?'+':'') + n.toFixed(2); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  function tokenEmbeddings(){
+    // Context-free lookup-table embeddings for the two source tokens.
+    const tokCountry = zeros(10);
+    if (country >= 0) tokCountry[country] = 1;
+    const tokTopic = zeros(10);
+    const topic = parseFloat(topicInput.value) / 100;
+    tokTopic[3] = topic;
+    tokTopic[7] = 0.10; tokTopic[8] = -0.06; tokTopic[9] = 0.04;
+    return { tokCountry, tokTopic };
+  }
+
+  function aggregatedRole(tokCountry, tokTopic){
+    // A shallow/earlier Attention layer copies both tokens' features into
+    // the single position the FFN will operate on.
+    return tokCountry.map(function(v,i){ return v + tokTopic[i]; });
+  }
+
+  function compute(){
+    const trainQ = parseFloat(trainInput.value) / 100;
+    const bias = lerp(0.35, 1.5, trainQ); // untrained: low threshold, easily fires on topic alone
+    const { tokCountry, tokTopic } = tokenEmbeddings();
+    const agg = aggregatedRole(tokCountry, tokTopic);
+    const x = agg.slice();
+
+    const results = NEURONS.map(function(n){
+      const K = zeros(10); K[n.country] = 1; K[3] = 1;
+      const raw = K[n.country]*x[n.country] + K[3]*x[3];
+      const score = raw - bias;
+      const act = Math.max(0, score);
+      const V = zeros(10); V[4+NEURONS.indexOf(n)] = 1;
+      return { n:n, K:K, raw:raw, score:score, act:act, V:V };
+    });
+
+    const output = zeros(10);
+    results.forEach(function(r){
+      for (let i=0;i<10;i++) output[i] += r.act * r.V[i];
+    });
+    const xFinal = x.map(function(v,i){ return v + output[i]; });
+
+    return { tokCountry, tokTopic, agg, x, bias, results, output, xFinal, trainQ };
+  }
+
+  function barRow(label, val, color, dimmed){
+    const min=-1, max=2; // allow room for activation sums slightly above 1
+    const clamped = Math.max(min, Math.min(max, val));
+    const pct = ((clamped - min) / (max - min)) * 100;
+    const zeroPct = ((0 - min) / (max - min)) * 100;
+    const left = Math.min(pct, zeroPct);
+    const width = Math.abs(pct - zeroPct);
+    return '<div class="bar-row' + (dimmed?' off':'') + '">' +
+      '<span class="bar-label">' + label + '</span>' +
+      '<span class="bar-track"><span class="bar-fill" style="left:' + left + '%; width:' + width + '%; background:' + (dimmed?'var(--dim-off)':color) + ';"></span></span>' +
+      '<span class="bar-num">' + fmt(val) + '</span>' +
+      '</div>';
+  }
+
+  function vecBars(vec, color, dimMask){
+    let html = '';
+    for (let i=0;i<DIM_LABELS.length;i++){
+      if (GROUP_AT[i]) html += '<div class="grp-label">' + GROUP_AT[i] + '</div>';
+      const dimmed = dimMask ? dimMask[i] : false;
+      html += barRow(DIM_LABELS[i], vec[i], color, dimmed);
+    }
+    return html;
+  }
+
+  const NOT_KEY_MASK = DIM_LABELS.map(function(_,i){ return KEY_DIMS.indexOf(i) === -1; });
+  const KEY_MASK = DIM_LABELS.map(function(_,i){ return KEY_DIMS.indexOf(i) !== -1; });
+
+  function renderTokenAndRole(state){
+    const countryLabel = country >= 0 ? COUNTRY_LABELS[country] : '(なし)';
+    tokGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>トークン埋め込み: ' + countryLabel + '</div>' + vecBars(state.tokCountry, 'var(--ref)', null) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>トークン埋め込み: 首都</div>' + vecBars(state.tokTopic, 'var(--ref)', null) + '</div>';
+
+    roleGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>集約: ' + countryLabel + ' 由来</div>' + vecBars(state.tokCountry, 'var(--ref)', NOT_KEY_MASK) + '</div>' +
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>集約: 首都 由来</div>' + vecBars(state.tokTopic, 'var(--ref)', NOT_KEY_MASK) + '</div>';
+
+    embGrid.innerHTML =
+      '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>入力ベクトル x</div>' + vecBars(state.x, 'var(--ref)', null) + '</div>';
+  }
+
+  function renderDiagram(state){
+    const inkSoft = getComputedStyle(document.documentElement).getPropertyValue('--ink-soft').trim();
+    const refColor = getComputedStyle(document.documentElement).getPropertyValue('--ref').trim();
+    const xX = 320, xY = 45;
+    const lanes = [ {key:'fr', x:130, label:'パリ担当'}, {key:'jp', x:320, label:'東京担当'}, {key:'de', x:510, label:'ベルリン担当'} ];
+    const acts = {}; state.results.forEach(function(r){ acts[r.n.id] = r.act; });
+    const maxA = Math.max(acts.fr, acts.jp, acts.de, 0.3);
+
+    function path(x1,y1,x2,y2){
+      const mx = (x1+x2)/2, my = (y1+y2)/2 + 20;
+      return 'M ' + x1 + ' ' + y1 + ' Q ' + mx + ' ' + my + ' ' + x2 + ' ' + y2;
+    }
+
+    let svg = '';
+    lanes.forEach(function(lane){
+      const a = acts[lane.key];
+      const col = getComputedStyle(document.documentElement).getPropertyValue('--' + lane.key).trim();
+      const strokeW = 2 + (a/maxA)*14;
+      const op = 0.2 + 0.7*Math.min(1, a/maxA);
+      svg += '<path d="' + path(xX, xY+18, lane.x, 150-30) + '" fill="none" stroke="' + col + '" stroke-width="' + strokeW + '" opacity="' + op + '" stroke-linecap="round"/>';
+      svg += '<text x="' + ((xX+lane.x)/2) + '" y="' + ((xY+150)/2 + 6) + '" text-anchor="middle" class="weight-label" fill="' + col + '">' + a.toFixed(2) + '</text>';
+      svg += '<rect x="' + (lane.x-50) + '" y="' + (150-24) + '" width="100" height="46" rx="10" class="node-box" stroke="' + col + '"/>';
+      svg += '<text x="' + lane.x + '" y="' + (150+1) + '" text-anchor="middle" class="node-label" fill="' + col + '">' + lane.label + '</text>';
+      svg += '<text x="' + lane.x + '" y="' + (150+16) + '" text-anchor="middle" class="node-sub" fill="' + inkSoft + '">発火度 ' + a.toFixed(2) + '</text>';
+    });
+    svg += '<rect x="' + (xX-52) + '" y="' + (xY-24) + '" width="104" height="46" rx="10" class="node-box" stroke="' + refColor + '"/>' +
+      '<text x="' + xX + '" y="' + (xY+1) + '" text-anchor="middle" class="node-label" fill="' + refColor + '">x</text>' +
+      '<text x="' + xX + '" y="' + (xY+16) + '" text-anchor="middle" class="node-sub" fill="' + inkSoft + '">入力</text>';
+
+    diagram.innerHTML = svg;
+  }
+
+  function renderKeys(state){
+    keyGrid.innerHTML = state.results.map(function(r){
+      const col = 'var(--' + r.n.color + ')';
+      return '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + col + '"></span>Key (' + r.n.label + ')</div>' +
+        vecBars(r.K, col, NOT_KEY_MASK) +
+        '<div class="score-line">Key・x = ' + fmt(r.raw) + ' &nbsp;/&nbsp; − しきい値 ' + fmt(state.bias) + ' &nbsp;=&nbsp; ' + fmt(r.score) + '<br>ReLU → 発火度 = ' + r.act.toFixed(2) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderFinal(state){
+    finalGrid.innerHTML = state.results.map(function(r){
+      const col = 'var(--' + r.n.color + ')';
+      return '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:' + col + '"></span>発火度 × Value (' + r.n.label + ')</div>' + vecBars(r.V.map(function(v){return v*r.act;}), col, KEY_MASK) + '</div>';
+    }).join('') +
+    '<div class="vec-card"><div class="who"><span class="dot-swatch" style="background:var(--ref)"></span>最終ベクトル x′(x + 加重和)</div>' + vecBars(state.xFinal, 'var(--ref)', KEY_MASK) + '</div>';
+  }
+
+  function renderResult(state){
+    const maxAct = Math.max.apply(null, state.results.map(function(r){return r.act;}));
+    fireBar.innerHTML = state.results.map(function(r){
+      const col = 'var(--' + r.n.color + ')';
+      const pct = maxAct>0 ? Math.round((r.act/(state.results.reduce(function(s,x){return s+x.act;},0)||1))*100) : 0;
+      const width = state.results.reduce(function(s,x){return s+x.act;},0) > 0 ? pct : (33.3);
+      return '<div class="fire-seg" style="flex:' + (r.act>0.001? r.act : 0.02) + '; background:' + col + ';">' + (r.act>0.05 ? (r.n.label + ' ' + r.act.toFixed(2)) : '') + '</div>';
+    }).join('');
+
+    let msg;
+    if (maxAct < 0.02) {
+      msg = 'どのニューロンも発火していません。しきい値を越えるだけの「国」と「トピック」の一致が入力に無いためです。';
+    } else {
+      const winner = state.results.reduce(function(best,r){ return r.act>best.act? r : best; });
+      const others = state.results.filter(function(r){return r!==winner && r.act>0.02;});
+      msg = '<b>' + winner.n.label.replace('担当','') + '</b>ニューロンが最も強く発火し(発火度 ' + winner.act.toFixed(2) + ')、出力の"' + winner.n.label.replace('担当','らしさ') + '"次元に書き込まれます。';
+      if (others.length) msg += ' ほかに ' + others.map(function(r){return r.n.label.replace('担当','');}).join('・') + ' も弱く発火しています(閾値が低いため)。';
+    }
+    verdict.innerHTML = msg;
+  }
+
+  // ---------------- pipeline diagram ----------------
+  const LANE_X = { fr:100, jp:320, de:540 };
+  function pcolor(c){ return getComputedStyle(document.documentElement).getPropertyValue('--' + c).trim(); }
+  function pbezier(x1,y1,x2,y2,bulge){ bulge = bulge||0; const mx=(x1+x2)/2+bulge, my=(y1+y2)/2; return 'M '+x1+' '+y1+' Q '+mx+' '+my+' '+x2+' '+y2; }
+  function pedge(a,b,opts){
+    opts = opts||{};
+    const col = opts.color ? pcolor(opts.color) : pcolor('ink-soft');
+    const width = opts.width || 1.6;
+    const opacity = (opts.opacity===undefined)?0.5:opts.opacity;
+    const y1=a.y+a.h/2, y2=b.y-b.h/2;
+    const d = pbezier(a.x,y1,b.x,y2,opts.bulge||0);
+    return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+width+'" opacity="'+opacity+'"'+(opts.dashed?' stroke-dasharray="5,4"':'')+' stroke-linecap="round"/>';
+  }
+  function pnodeSvg(n){
+    const col = pcolor(n.c);
+    const x0=n.x-n.w/2, y0=n.y-n.h/2;
+    const labelCls = 'pipe-label' + (n.sm?' sm':'');
+    const labelY = n.sub ? n.y-3 : n.y+5;
+    let s = '<rect x="'+x0+'" y="'+y0+'" width="'+n.w+'" height="'+n.h+'" rx="9" class="node-box" stroke="'+col+'"'+(n.sm?' stroke-dasharray="3,2"':'')+'/>' +
+      '<text x="'+n.x+'" y="'+labelY+'" text-anchor="middle" class="'+labelCls+'" fill="'+col+'">'+n.label+'</text>';
+    if (n.sub) s += '<text x="'+n.x+'" y="'+(n.y+13)+'" text-anchor="middle" class="pipe-sub">'+n.sub+'</text>';
+    if (n.extra) s += '<text x="'+n.x+'" y="'+(n.y+n.h/2+13)+'" text-anchor="middle" class="pipe-val">'+n.extra+'</text>';
+    return s;
+  }
+
+  function renderPipeline(state){
+    const N = {
+      attnStub: {x:320,y:36,w:260,h:64,label:'Attention層',sub:'(前段・ここでは省略)',c:'ink-soft',sm:true},
+      input: {x:320,y:166,w:200,h:44,label:'x',sub:'入力(残差ストリーム)',c:'ref'},
+      keyFr: {x:LANE_X.fr,y:280,w:104,h:42,label:'Key・x',sub:'パリ担当',c:'fr'},
+      keyJp: {x:LANE_X.jp,y:280,w:104,h:42,label:'Key・x',sub:'東京担当',c:'jp'},
+      keyDe: {x:LANE_X.de,y:280,w:104,h:42,label:'Key・x',sub:'ベルリン担当',c:'de'},
+      reluFr:{x:LANE_X.fr,y:380,w:96,h:36,label:'ReLU',sub:'発火度',c:'fr',sm:true},
+      reluJp:{x:LANE_X.jp,y:380,w:96,h:36,label:'ReLU',sub:'発火度',c:'jp',sm:true},
+      reluDe:{x:LANE_X.de,y:380,w:96,h:36,label:'ReLU',sub:'発火度',c:'de',sm:true},
+      valFr: {x:LANE_X.fr,y:480,w:96,h:40,label:'× V',sub:'パリらしさ',c:'fr'},
+      valJp: {x:LANE_X.jp,y:480,w:96,h:40,label:'× V',sub:'東京らしさ',c:'jp'},
+      valDe: {x:LANE_X.de,y:480,w:96,h:40,label:'× V',sub:'ベルリンらしさ',c:'de'},
+      sum:   {x:320,y:580,w:110,h:44,label:'Σ',sub:'加重和',c:'ref'},
+      add:   {x:320,y:680,w:110,h:44,label:'+',sub:'残差加算',c:'ref'},
+      final: {x:320,y:780,w:170,h:54,label:'x′',sub:'出力ベクトル',c:'ref'}
+    };
+
+    const acts = {}; state.results.forEach(function(r){ acts[r.n.id] = r.act; });
+    const maxA = Math.max(acts.fr, acts.jp, acts.de, 0.001);
+
+    N.keyFr.extra = fmt(state.results[0].raw)+' −'+state.bias.toFixed(2);
+    N.keyJp.extra = fmt(state.results[1].raw)+' −'+state.bias.toFixed(2);
+    N.keyDe.extra = fmt(state.results[2].raw)+' −'+state.bias.toFixed(2);
+    N.reluFr.extra = acts.fr.toFixed(2);
+    N.reluJp.extra = acts.jp.toFixed(2);
+    N.reluDe.extra = acts.de.toFixed(2);
+    N.final.extra = 'パリ性='+fmt(state.xFinal[4])+' 東京性='+fmt(state.xFinal[5])+' 独性='+fmt(state.xFinal[6]);
+
+    function op(a){ return 0.25 + 0.65*Math.min(1, a/ (maxA>0.3?maxA:0.3)); }
+
+    let edges = '';
+    edges += pedge(N.attnStub, N.input, {color:'ink-soft', width:1.6, opacity:0.35, dashed:true});
+    ['fr','jp','de'].forEach(function(k, idx){
+      const col = k;
+      const keyN = N['key'+cap(k)];
+      const reluN = N['relu'+cap(k)];
+      const valN = N['val'+cap(k)];
+      const a = acts[k];
+      edges += pedge(N.input, keyN, {color:col, opacity:0.4});
+      edges += pedge(keyN, reluN, {color:col, opacity: op(a), width: 1.4+a*5});
+      edges += pedge(reluN, valN, {color:col, opacity: op(a), width: 1.4+a*5});
+      edges += pedge(valN, N.sum, {color:col, opacity: op(a), width: 1.4+a*5});
+    });
+    edges += pedge(N.sum, N.add, {color:'ref', width:2.4, opacity:0.7});
+    edges += pedge(N.input, N.add, {color:'ref', width:2.0, opacity:0.45, bulge:-190, dashed:true});
+    edges += pedge(N.add, N.final, {color:'ref', width:2.6, opacity:0.8});
+
+    function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+    let nodesSvg = '';
+    Object.keys(N).forEach(function(k){ nodesSvg += pnodeSvg(N[k]); });
+
+    const stages = [
+      {y:36, t:'(前段はAttention層)'},
+      {y:166,t:'入力'},
+      {y:280,t:'Key・x − しきい値'},
+      {y:380,t:'ReLU(発火)'},
+      {y:480,t:'× Value'},
+      {y:580,t:'加重和'},
+      {y:680,t:'残差ストリームへ加算'}
+    ];
+    let stageSvg = stages.map(function(s){ return '<text x="8" y="'+(s.y+3)+'" class="pipe-stage">'+s.t+'</text>'; }).join('');
+
+    pipeline.innerHTML = edges + nodesSvg + stageSvg;
+  }
+
+  function render(){
+    const state = compute();
+    renderDiagram(state);
+    renderPipeline(state);
+    renderTokenAndRole(state);
+    renderKeys(state);
+    renderFinal(state);
+    renderResult(state);
+  }
+
+  function updateLabels(){
+    topicVal.textContent = topicInput.value + '%';
+    trainVal.textContent = trainInput.value + '%';
+  }
+
+  topicInput.addEventListener('input', function(){ updateLabels(); render(); });
+  trainInput.addEventListener('input', function(){ updateLabels(); render(); });
+
+  updatePills();
+  updateLabels();
+  render();
+})();
+
+</script>
+</body>
+</html>
