@@ -357,7 +357,16 @@ const PREFIXES_RAW = [
   [["bene","ben"],"良い、善い","ラテン語"],
   [["equi","egal"],"等しい","ラテン語（aequus）"],
   [["exo"],"外の","ギリシャ語（exo）"],
+  [["all","al"],"すべて","古英語（eall）"],
   [["juxta"],"並んで","ラテン語（juxta）"],
+  [["down"],"下へ","古英語（dun）"],
+  [["no"],"否定","古英語（na）"],
+  [["to"],"へ","古英語（to）"],
+  [["as"],"のように","古英語（eallswa）"],
+  [["by"],"そばに","古英語（be）"],
+  [["of"],"の","古英語（of）"],
+  [["forth"],"前へ","古英語（forþ）"],
+  [["back"],"後ろへ","古英語（bæc）"],
   [["bi","bin"],"2つの","ラテン語"],
   [["duo","du"],"2つの","ラテン語（duo）"],
   [["cata","cat"],"下へ、完全に","ギリシャ語"],
@@ -464,7 +473,7 @@ const ROOTS_RAW = [
   [["vect","veh"],"運ぶ","ラテン語（vehere）"],
   [["popul"],"民衆、人々","ラテン語（populus）"],
   [["lig","liga"],"結びつける","ラテン語（ligare）"],
-  [["fort"],"強い","ラテン語（fortis）"],
+  [["fort","forc"],"強い","ラテン語（fortis）"],
   [["fort"],"運、幸運","ラテン語（fortuna）"],
   [["san"],"健全な、健康な","ラテン語（sanus）"],
   [["narr"],"語る、告げる","ラテン語（narrare）"],
@@ -495,6 +504,7 @@ const ROOTS_RAW = [
   [["sult","sil","sail"],"跳ぶ","ラテン語（salire）"],
   [["grat"],"感謝する、喜ばせる","ラテン語（gratus）"],
   [["mnant"],"残っている","ラテン語（remanere「留まる」の縮約形）","この-mnantはremanere「留まる」がremnantという1語に縮約される過程で生まれた、この単語専用の形です。"],
+  [["man"],"留まる","ラテン語（manere）"],
   [["prehend","prehens"],"つかむ、握る","ラテン語（prehendere）"],
   [["fus","fut"],"注ぐ、溶かす","ラテン語（fundere/fusus）"],
   [["nounce","nunci"],"告げる","ラテン語（nuntiare）"],
@@ -507,6 +517,7 @@ const ROOTS_RAW = [
   [["onym"],"名前","ギリシャ語（onyma）"],
   [["dorm"],"眠る","ラテン語（dormire）"],
   [["here","hes"],"くっつく","ラテン語（haerere）"],
+  [["here"],"ここに","古英語（her）"],
   [["phas","phan","phem"],"現れる、示す","ギリシャ語（phainein）"],
   [["culmin"],"頂点","ラテン語（culmen）"],
   [["pat","pass"],"苦しむ、耐える","ラテン語（pati/passus）"],
@@ -562,7 +573,6 @@ const ROOTS_RAW = [
   [["ton","tound","tonish"],"鳴り響く","ラテン語（tonare）"],
   [["dol"],"苦しむ、痛む","ラテン語（dolere）"],
   [["tend","tens"],"伸ばす","ラテン語（tendere）"],
-  [["not"],"印をつける、知らせる","ラテン語（notare）"],
   [["ple","plet","plish"],"満たす","ラテン語（plere）"],
   [["olesc"],"成長する","ラテン語（adolescere）"],
   [["ult"],"成長した","ラテン語（adultus）"],
@@ -596,7 +606,6 @@ const ROOTS_RAW = [
   [["somn"],"眠り","ラテン語（somnus）"],
   [["integr"],"完全な、一体の","ラテン語（integer）"],
   [["vad","vas"],"行く","ラテン語（vadere）"],
-  [["rig"],"水をやる","ラテン語（rigare）"],
   [["lingu"],"言語、舌","ラテン語（lingua）"],
   [["bol","blem"],"投げる","ギリシャ語（ballein）"],
   [["milit"],"兵士","ラテン語（miles）"],
@@ -792,7 +801,7 @@ const ROOTS_RAW = [
   [["prav"],"曲がった、邪悪な","ラテン語（pravus）"],
   [["rid","ris"],"笑う","ラテン語（ridere）"],
   [["despot"],"主人","ギリシャ語（despotes）"],
-  [["tour","torn"],"回る","ラテン語（tornare）"],
+  [["tour","torn","turn"],"回る","ラテン語（tornare）"],
   [["vi"],"道","ラテン語（via）"],
   [["lapid"],"石","ラテン語（lapis）"],
   [["sicc"],"乾いた","ラテン語（siccus）"],
@@ -813,6 +822,127 @@ const ROOTS_RAW = [
   [["strict","string"],"締める","ラテン語（stringere）"],
   [["trop"],"見つける、向きを変える","ギリシャ語（tropos）"],
   [["vulg"],"民衆","ラテン語（vulgus）"],
+  [["vulner"],"傷","ラテン語（vulnus）"],
+  [["veloc"],"速い","ラテン語（velox）"],
+  [["past"],"養う、牧草を与える","ラテン語（pascere）"],
+  [["reck"],"気にする","古英語（reccan）"],
+  [["low"],"誉める、置く","古フランス語（alouer、複数語源が混ざった語）"],
+  [["awk"],"あべこべの","古ノルド語（ofugr）"],
+  [["body"],"体","古英語（bodig）"],
+  [["thing"],"もの","古英語（þing）"],
+  [["where"],"どこ","古英語（hwær）"],
+  [["one"],"1つ","古英語（an）"],
+  [["hand"],"手","古英語（hand）"],
+  [["quart"],"4分の1","ラテン語（quartus）"],
+  [["heart"],"心臓","古英語（heorte）"],
+  [["home"],"家","古英語（ham）"],
+  [["house"],"家","古英語（hus）"],
+  [["life"],"命","古英語（lif）"],
+  [["land"],"土地","古英語（land）"],
+  [["break"],"壊す","古英語（brecan）"],
+  [["fit"],"合う","中英語（語源不詳）"],
+  [["rage"],"怒り","古フランス語（rage）"],
+  [["reach"],"届く","古英語（ræcan）"],
+  [["flow"],"流れる","古英語（flowan）"],
+  [["load"],"積む","古英語（lad）"],
+  [["night"],"夜","古英語（niht）"],
+  [["weight"],"重さ","古英語（wegan）"],
+  [["whelm"],"覆う","古英語（hwelmen）"],
+  [["work"],"働く","古英語（weorc）"],
+  [["go"],"行く","古英語（gan）"],
+  [["ground"],"地面","古英語（grund）"],
+  [["bring"],"持ってくる","古英語（bringan）"],
+  [["stair"],"階段","古英語（stæger）"],
+  [["town"],"町","古英語（tun）"],
+  [["shadow"],"影","古英語（sceadu）"],
+  [["sight"],"視界","古英語（sihþ）"],
+  [["tell"],"話す","古英語（tellan）"],
+  [["warn"],"警告する","古英語（warnian）"],
+  [["word"],"言葉","古英語（word）"],
+  [["have","havior","haviour"],"持つ","古英語（habban）"],
+  [["hap"],"運","古ノルド語（happ）"],
+  [["lead"],"導く","古英語（lædan）"],
+  [["aware","war"],"気をつける","古英語（gewær）"],
+  [["fold"],"折る","古英語（fealdan）"],
+  [["know"],"知る","古英語（cnawan）"],
+  [["saf"],"安全な","ラテン語（salvus）"],
+  [["wrap"],"包む","中英語（wrappen）"],
+  [["keep"],"保つ","古英語（cepan）"],
+  [["stream"],"流れ","古英語（stream）"],
+  [["surge"],"湧き上がる","ラテン語（surgere）"],
+  [["friend"],"友達","古英語（freond）"],
+  [["wild"],"野生の","古英語（wilde）"],
+  [["witch"],"魔女","古英語（wicce）"],
+  [["fare"],"旅する","古英語（faran）"],
+  [["foot"],"足","古英語（fot）"],
+  [["gate"],"門","古英語（geat）"],
+  [["grasp"],"つかむ","古英語（grapsan）"],
+  [["made","make"],"作る","古英語（macian）"],
+  [["stead"],"場所","古英語（stede）"],
+  [["bound"],"境界","古ノルド語（bond）"],
+  [["burst"],"破裂する","古英語（berstan）"],
+  [["cry"],"叫ぶ","古フランス語（crier）"],
+  [["door"],"扉","古英語（duru）"],
+  [["law"],"法律","古英語（lagu）"],
+  [["hear"],"聞く","古英語（hieran）"],
+  [["joy"],"喜び","古フランス語（joie）"],
+  [["self"],"自己","古英語（self）"],
+  [["short"],"短い","古英語（sceort）"],
+  [["how"],"どのように","古英語（hu）"],
+  [["day"],"日","古英語（dæg）"],
+  [["storm"],"嵐","古英語（storm）"],
+  [["score"],"刻み目","古ノルド語（skor）"],
+  [["wear"],"着る","古英語（werian）"],
+  [["lift"],"持ち上げる","古ノルド語（lypta）"],
+  [["swing"],"揺れる","古英語（swingan）"],
+  [["proof"],"証明","古フランス語（prove）"],
+  [["tight"],"きつい","古ノルド語（thettr）"],
+  [["shed"],"流す、小屋","古英語（sceadan）"],
+  [["spread"],"広げる","古英語（sprædan）"],
+  [["mill"],"製粉所","ラテン語（mola）"],
+  [["shield"],"盾","古英語（scield）"],
+  [["wide"],"広い","古英語（wid）"],
+  [["worth"],"価値","古英語（weorþ）"],
+  [["while"],"間","古英語（hwil）"],
+  [["number"],"数","ラテン語（numerus）"],
+  [["there"],"そこ","古英語（þær）"],
+  [["further"],"さらに","古英語（furþra）"],
+  [["more"],"もっと","古英語（mara）"],
+  [["book"],"本","古英語（boc）"],
+  [["shake"],"振る","古英語（sceacan）"],
+  [["writ"],"書く","古英語（writan）"],
+  [["sick"],"病気の","古英語（seoc）"],
+  [["wife"],"妻","古英語（wif）"],
+  [["time"],"時間","古英語（tima）"],
+  [["mark"],"印","古英語（mearc）"],
+  [["lord"],"主人","古英語（hlaford）"],
+  [["lap"],"重ねる","古英語（læppa）"],
+  [["calcul"],"石で数える","ラテン語（calculus）"],
+  [["trust"],"信頼","古ノルド語（traust）"],
+  [["rest"],"休み","古英語（ræst）"],
+  [["will"],"意思","古英語（willa）"],
+  [["wind"],"風、巻く","古英語（wind）"],
+  [["hill"],"丘","古英語（hyll）"],
+  [["pour"],"注ぐ","古フランス語（purer）"],
+  [["root"],"根","古ノルド語（rot）"],
+  [["get"],"得る","古ノルド語（geta）"],
+  [["well"],"良く","古英語（wel）"],
+  [["print"],"印刷する","古フランス語（preinte）"],
+  [["step"],"歩み","古英語（steppan）"],
+  [["cut"],"切る","中英語（語源不詳）"],
+  [["dog"],"犬","古英語（docga）"],
+  [["water"],"水","古英語（wæter）"],
+  [["week"],"週","古英語（wice）"],
+  [["end"],"終わり","古英語（ende）"],
+  [["wood"],"木","古英語（wudu）"],
+  [["shop"],"店","古英語（sceoppa）"],
+  [["world"],"世界","古英語（woruld）"],
+  [["through"],"通して","古英語（þurh）"],
+  [["though"],"たとえ〜でも","古英語（þeah）"],
+  [["most"],"最も","古英語（mæst）"],
+  [["ready"],"準備ができた","古英語（ræde）"],
+  [["gether","gather","together"],"集める","古英語（gaderian）"],
+  [["way","ways"],"道","古英語（weg）"],
   [["void"],"空の","ラテン語（vacuus）"],
   [["dino"],"恐ろしい","ギリシャ語（deinos）"],
   [["saur"],"トカゲ","ギリシャ語（sauros）"],
@@ -956,8 +1086,11 @@ const ROOTS_RAW = [
   [["val","vail"],"価値、強い","ラテン語"],
   [["ven","vent"],"来る","ラテン語"],
   [["ver"],"真実","ラテン語"],
+  [["ever"],"いつも","古英語（æfre）"],
+  [["rig"],"水をやる","ラテン語（rigare）"],
+  [["rig","right"],"正しい","古英語（riht）"],
   [["verb"],"言葉","ラテン語"],
-  [["vert","vers"],"回す、向きを変える","ラテン語"],
+  [["vert","vers","vorc"],"回す、向きを変える","ラテン語"],
   [["vid","vis","voy"],"見る","ラテン語"],
   [["vinc","vict"],"勝つ、征服する","ラテン語"],
   [["viv","vit"],"生きる","ラテン語"],
@@ -981,7 +1114,7 @@ const ROOTS_RAW = [
 ];
 
 const SUFFIXES_RAW = [
-  [["able","ible"],"〜できる（形容詞化）","ラテン語"],
+  [["able","ible","abil","ibil"],"〜できる（形容詞化）","ラテン語"],
   [["age"],"行為・状態（名詞化）","ラテン語/フランス語"],
   [["al","ial"],"〜に関する（形容詞化）","ラテン語"],
   [["ure"],"こと、状態","ラテン語"],
@@ -1172,15 +1305,20 @@ function decomposeWord(word, rootEntries, suffixEntries){
     }
   }
 
-  // 単語末尾での状態選択: 語根を含む分割(R)があれば必ずそれを優先する。
-  // なければN、それもなければP（＝語根が一つも見つからなかった場合の最終手段）。
-  let endState;
-  if(dp[n].R){
-    endState = 'R';
-  } else if(dp[n].N && dp[n].P){
-    endState = dp[n].N.cost <= dp[n].P.cost ? 'N' : 'P';
-  } else {
-    endState = dp[n].N ? 'N' : 'P';
+  // 単語末尾での状態選択: 語根の有無で無条件に決めるのではなく、
+  // 実際に存在する状態（R/N/P）の中から純粋にコストが最小のものを選ぶ。
+  // 以前は「Rが存在すれば無条件にRを優先」としていたが、これだと
+  // "combine" のように "com" が無関係な語根 "come"（来る）に
+  // 偶然ゆるく一致しただけで、はるかに安くきれいな分割（com+bin+e）
+  // より優先されてしまう、という逆効果を生んでいた。正しい語根に
+  // 基づく分割は通常それだけでコストが下がるはずなので、状態を
+  // 問わずコストで比較する方が理にかなっている。
+  let endState = null, endCost = Infinity;
+  for(const s of ['R','N','P']){
+    if(dp[n][s] && dp[n][s].cost < endCost){
+      endState = s;
+      endCost = dp[n][s].cost;
+    }
   }
 
   // 復元
@@ -1216,6 +1354,23 @@ const WORD_NOTES = {
   'exacerbate': {
     'ex': { note: 'ここでの ex- は「外へ」という原義よりも、「徹底的に、完全に」という強調の意味合いで使われています。' }
   },
+  'alignment': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'align': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'aligned': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'aligns': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'realign': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'misalignment': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'atypical': { 'a': { primaryMeaning: '〜がない、否定' } },
+  'asymmetric': { 'a': { primaryMeaning: '〜がない、否定' } },
+  'asymmetrical': { 'a': { primaryMeaning: '〜がない、否定' } },
+  'apolitical': { 'a': { primaryMeaning: '〜がない、否定' } },
+  'asexual': { 'a': { primaryMeaning: '〜がない、否定' } },
+  'arise': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'awake': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'amiss': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'asleep': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'aboard': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
+  'ashore': { 'a': { primaryMeaning: '〜へ、〜の状態で' } },
   'encyclopedia': {
     'ped': { primaryMeaning: '子供' }
   },
@@ -1250,6 +1405,13 @@ const WORD_NOTES = {
   'centipede': { 'ped': { primaryMeaning: '足' } },
   'pediatric': { 'ped': { primaryMeaning: '子供' } },
   'pedagogue': { 'ped': { primaryMeaning: '子供' } },
+  'remain': { 'main': { primaryMeaning: '留まる' } },
+  'remaining': { 'main': { primaryMeaning: '留まる' } },
+  'remainder': { 'main': { primaryMeaning: '留まる' } },
+  'permanent': { 'man': { primaryMeaning: '留まる' } },
+  'permanence': { 'man': { primaryMeaning: '留まる' } },
+  'maintain': { 'main': { primaryMeaning: '手' } },
+  'maintenance': { 'main': { primaryMeaning: '手' } },
   'comply': {
     'ply': {
       override: { meaning: '満たす', origin: 'ラテン語（complere、complete と同語源）' },
@@ -1374,11 +1536,21 @@ function render(word){
   // 割合が大きい場合、この単語はそもそも接頭辞・語根・接尾辞という
   // パターンに当てはまらない（＝純粋なゲルマン語や、フランス語などを
   // 経由して原形を留めていない単語である）可能性が高いと判断する。
+  // さらに、接頭辞が1つもないのに短い（3文字以下の）語根が2つ以上
+  // 連続している場合（例: silver→sil+ver, father→fat+her）も、
+  // 実際には無関係な短い語根同士がたまたま単語を覆っただけである
+  //可能性が高いため、同様に警告対象とする。
   const cleanWord = word.toLowerCase().replace(/[^a-z]/g,'');
   const hasRoot = pieces.some(p=>p.kind==='root');
+  const hasPrefix = pieces.some(p=>p.kind==='prefix');
+  const rootPieces = pieces.filter(p=>p.kind==='root');
+  const allRootsShort = rootPieces.length>0 && rootPieces.every(p=>p.piece.length<=3);
+  const isWholeWordSingleRoot = pieces.length===1 && pieces[0].kind==='root';
+  const weakShortRootEvidence = !isWholeWordSingleRoot && !hasPrefix && rootPieces.length>0 && rootPieces.every(p=>p.piece.length<=4) && cleanWord.length<=7;
   const unknownChars = pieces.filter(p=>p.kind==='unknown').reduce((sum,p)=>sum+p.piece.length,0);
   const unknownRatio = cleanWord.length>0 ? unknownChars/cleanWord.length : 0;
-  const likelyIndecomposable = !hasRoot || unknownRatio >= 0.4;
+  const nothingStructural = !hasRoot && !hasPrefix;
+  const likelyIndecomposable = nothingStructural || unknownRatio >= 0.15 || weakShortRootEvidence;
 
   let warningHtml = '';
   if(likelyIndecomposable){
