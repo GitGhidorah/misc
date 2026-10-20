@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>語源分解ツール ver2.6 — Etymology Splitter</title>
+<title>語源分解ツール ver2.8 — Etymology Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -309,7 +309,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.6</div>
+    <div class="eyebrow">Etymology Decomposer / 語源分解ツールver2.8</div>
     <h1>英単語を語源の要素に分割する</h1>
     <p class="lead">英単語を入力すると、代表的な接頭辞・語根・接尾辞のパターン一致にもとづいて、単語を意味のある要素に分解します。</p>
   </header>
@@ -1436,6 +1436,14 @@ const WORD_NOTES = {
       note: 'これはギリシャ語の「反対に」ではありません。ラテン語の ante-「前に」が、後ろの子音の影響で綴りが anti- に変化したものです。'
     }
   },
+  'lever': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。' } },
+  'levered': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。' } },
+  'levers': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。' } },
+  'levering': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。' } },
+  'leverage': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。 leverage はそこに -age（作用・状態）が付いた「てこの作用」で、転じて「影響力・借入による資金効率」の意味にもなります。' } },
+  'leverages': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。 leverage はそこに -age（作用・状態）が付いた「てこの作用」で、転じて「影響力・借入による資金効率」の意味にもなります。' } },
+  'leveraged': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。 leverage はそこに -age（作用・状態）が付いた「てこの作用」で、転じて「影響力・借入による資金効率」の意味にもなります。' } },
+  'leveraging': { 'lev': { note: 'lever（てこ）は古フランス語 levier（持ち上げるもの）に由来し、ラテン語 levare「持ち上げる」が源です。lev + -er（〜するもの）＝「持ち上げる道具」。 leverage はそこに -age（作用・状態）が付いた「てこの作用」で、転じて「影響力・借入による資金効率」の意味にもなります。' } },
   'caveat': {
     'eat': { note: 'これは英語の接尾辞ではありません。caveatはラテン語の動詞 cavere（用心する）の三人称単数接続法「彼は用心せよ」がそのまま英語に取り込まれた1語で、veto（我は禁ずる）やmemento（覚えておけ）と同じく、活用形ごと丸ごと借用された化石的な単語です。' }
   }
@@ -1461,7 +1469,20 @@ const WORD_ROOT_EXCLUDE = {
   'century': ['cant'],
   'centuries': ['cant'],
   'percent': ['cant'],
-  'percentage': ['cant']
+  'percentage': ['cant'],
+  // lever(てこ) = lev + er。"rage"(怒り)や"ever"(いつも)は無関係な偶然の一致
+  'lever': ['ever'],
+  'levers': ['ever','vers'],
+  'levered': ['ever'],
+  'levering': ['ever'],
+  'leverage': ['rage','ever'],
+  'leverages': ['rage','ever','ag'],
+  'leveraged': ['rage','ever','ag'],
+  'leveraging': ['rage','ever','ag'],
+  'relevant': ['vant'],
+  'relevance': ['vant'],
+  'irrelevant': ['vant'],
+  'irrelevance': ['vant']
 };
 
 /* ---------- 単語ごとの接尾辞除外 ----------
@@ -1474,7 +1495,19 @@ const WORD_SUFFIX_EXCLUDE = {
   'legislation': ['le'],
   'legislate': ['le'],
   'legislative': ['le'],
-  'legislator': ['le']
+  'legislator': ['le'],
+  'lever': ['l','le'],
+  'levers': ['l','le','e'],
+  'levered': ['l','le'],
+  'levering': ['l','le'],
+  'leverage': ['l','le'],
+  'leverages': ['l','le'],
+  'leveraged': ['l','le'],
+  'leveraging': ['l','le'],
+  'relevant': ['le'],
+  'relevance': ['le'],
+  'irrelevant': ['le'],
+  'irrelevance': ['le']
 };
 
 function decompose(rawWord){
